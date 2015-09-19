@@ -69,8 +69,8 @@ function join_grp(sock) {
             reject(new Error('Bad Group ID - did you enter it correctly?'));
         }
         sock.emit('rjoin', gid);
-        var bjL = function bad_join() {
-            reject(new Error('Group does not exist.'));
+        var bjL = function bad_join(err) {
+            reject(new Error('Error from server: ' + err));
         };
         var sjL = function good_join(id) {
             sock.removeListener('badjoin', bjL);

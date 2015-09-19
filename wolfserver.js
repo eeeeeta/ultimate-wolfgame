@@ -30,6 +30,37 @@ var group_gen_plist = co.wrap(function *(id) {
         mpl: 4
     });
 });
+var group_create = co.wrap(function *(sock, gid) {
+    var exists = yield db.exists('games/' + gid);
+    if (exists) yield Promise.reject(new Error('Group already exists'));
+    yield db.hset('games/' + gid, sock.id, sock.name);
+    sock.join('games/' + gid);
+    sock.emit('join', gid);
+    sock.grp = gid;
+    yield group_gen_plist(gid);
+    console.log('sid ' + sock.id + ' (' + sock.name + ') creates group ' + gid);
+});
+var group_join = co.wrap(function *(sock, gid) {
+    var exists = yield db.exists('games/' + gid);
+    if (exists == false) yield Promise.reject(new Error('No such group'));
+    var len = yield db.hlen('games/' + gid);
+    if (len >= 4) yield Promise.reject(new Error('Too many players in group'));
+    yield db.hset('games/' + gid, sock.id, sock.name);
+    sock.join('games/' + gid);
+    sock.emit('join', gid);
+    sock.grp = gid;
+    yield group_gen_plist(gid);
+    console.log('sid ' + sock.id + ' (' + sock.name + ') joins group ' + gid);
+});
+var group_leave = co.wrap(function *(sock, gid) {
+    var exists = yield db.exists('games/' + gid);
+    if (exists == false) yield Promise.reject(new Error('No such group'));
+    var name = yield db.hget('games/' + gid, sock.id);
+    if (name != sock.name) yield Promise.reject(new Error('Player not in group'));
+    yield db.hdel('games/' + gid, sock.id);
+    yield group_gen_plist(gid);
+    console.log('sid ' + sock.id + ' (' + sock.name + ') leaves group ' + gid);
+});
 io.on('connection', function(sock) {
     sock.ip = sock.request.connection.remoteAddress;
     sock.name = 'namenotset';
@@ -45,6 +76,17 @@ io.on('connection', function(sock) {
             console.log('sock ' + sock.id + ' set name ' + name);
         }
     });
+    sock.on('disconnect', function() {
+        console.log('sid ' + sock.id + ' disconnected, removing rooms');
+        co(function *() {
+            if (sock.grp) yield group_leave(sock, sock.grp);
+        }).then(function() {
+            console.log('cleanup of sid ' + sock.id + ' completed');
+        }, function(err) {
+            console.error('error while cleaning up ' + sock.id);
+            console.error(err.stack);
+        });
+    });
     sock.on('create', function() {
         co(function *() {
             var tries = 0;
@@ -58,10 +100,7 @@ io.on('connection', function(sock) {
                 if (tries++ > 5) yield Promise.reject(new Error('too many tries'));
                 console.log('id in use, retrying');
             }
-            yield db.hset('games/' + id, sock.id, sock.name);
-            sock.emit('join', id);
-            sock.join('games/' + id);
-            yield group_gen_plist(id);
+            yield group_create(sock, id);
             console.log('sock ' + sock.id + ' (name ' + sock.name + ') created and joined gameid ' + id);
         }).then(function() {
             console.log('group creation (sid ' + sock.id + ') executed successfully');
@@ -74,24 +113,25 @@ io.on('connection', function(sock) {
     sock.on('rjoin', function(id) {
         co(function *() {
             if (!/^[a-z0-9]+$/i.test(id) || id.length > 10 || id.length < 2) {
-                sock.emit('badjoin');
                 console.log('sid ' + sock.id + ' provided bad group code ' + id);
+                sock.emit('badjoin', 'Bad group code');
+                return;
             }
-            else {
-                var exists = yield db.exists('games/' + id);
-                if (!exists) {
-                    console.log('sid ' + sock.id + ' failed requesting join ' + id + ', as it does not exist');
-                    sock.emit('badjoin');
-                }
-                else {
-                    console.log('joining ' + sock.id + ' to gid ' + id);
-                    yield db.hset('games/' + id, sock.id, sock.name);
-                    sock.join('games/' + id);
-                    sock.emit('join', id);
-                    yield group_gen_plist(id);
-                    console.log('sock ' + sock.id + ' (name ' + sock.name + ' joined gameid ' + id);
-                }
+            var exists = yield db.exists('games/' + id);
+            if (!exists) {
+                console.log('sid ' + sock.id + ' failed requesting join ' + id + ', as it does not exist');
+                sock.emit('badjoin', 'No such group');
+                return;
             }
+            var len = yield db.hlen('games/' + id);
+            if (len >= 4) {
+                console.log('sid ' + sock.id + ' failed requesting join ' + id + ', as players >= 4');
+                sock.emit('badjoin', 'Too many players');
+                return;
+            }
+            console.log('joining ' + sock.id + ' to gid ' + id);
+            yield group_join(sock, id);
+            console.log('sock ' + sock.id + ' (name ' + sock.name + ') joined gameid ' + id);
         }).then(function() {
             console.log('group join (sid ' + sock.id + ') executed succesfully');
         }, function(err) {
