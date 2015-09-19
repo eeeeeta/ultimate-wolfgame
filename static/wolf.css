@@ -1,0 +1,35 @@
+body {
+    font-family: "Raleway", sans-serif;
+}
+#players-list {
+    text-align: left;
+}
+.lgi-clickable {
+    cursor: pointer;
+}
+.lgi-clickable:hover {
+    background: #E4E4E4;
+}
+.uw-main {
+    text-align: center;
+        margin-left: 5%;
+    margin-right: 5%;
+}
+.uw-headpiece {
+    width: 100%;
+    background: black;
+    color: white;
+    text-align: center;
+    padding-top: 20px;
+    padding-bottom: 20px;
+}
+.uw-title {
+    font-size: 40px;
+    font-family: 'Lobster Two', cursive;
+}
+.uw-shameless-plug {
+    color: gray;
+}
+.eta {
+    color: #64D455;
+}

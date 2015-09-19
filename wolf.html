@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Ultimate Wolfgame</title>
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
+        <link href='https://fonts.googleapis.com/css?family=Lobster+Two|Raleway' rel='stylesheet' type='text/css'>
+        <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+        <script src="/socket.io/socket.io.js"></script>
+        <script src="/bluebird.min.js"></script>
+        <script src="/wolf.js"></script>
+        <link rel="stylesheet" href="/wolf.css">
+        <link rel="stylesheet" href="/anim.css">
+    </head>
+    <body>
+        <div class="uw-headpiece">
+            <span class="uw-title">Ultimate Wolfgame</span>
+            </br>
+            <a class="uw-shameless-plug" href="//theta.eu.org">an <span class="eta">&#x03b7;</span> creation</a>
+        </div>
+        <div class="uw-main">
+            <div class="uw-welcome uwn">
+                <h2>Welcome to Ultimate Wolfgame</h2>
+                <h4 class="init-conn">Just wait a second, we're connecting to the server...</h4>
+                <div class="init-btns animated fadeIn" style="display: none;">
+                    <h4>Please enter a name, then click Create to start a new game or Join to join an existing game.</h4>
+                    <div class="input-group">
+                        <input type="text" class="form-control" placeholder="Name" id="name">
+                        <span class="input-group-btn">
+                            <button type="button" id="group-create" class="btn btn-danger name-val">
+                                Create
+                            </button>
+                            </span><span class="input-group-btn">
+                            <button type="button" id="group-join" class="btn btn-success name-val">
+                                Join
+                        </button></span>
+                    </div>
+                </div>
+                <div class="group-join-input" style="display: none;">
+                    <h4>Enter the group code given to you by your host.</h4>
+                    <div class="input-group">
+                        <span class="input-group-btn">
+                            <button class="btn btn-default" id="group-join-welp">
+                                Back
+                            </button>
+                        </span>
+                        <input type="text" class="form-control" placeholder="Enter group code here!" id="group-code">
+                        <span class="input-group-btn">
+                            <button class="btn btn-success" id="group-join-confirm">
+                                Join!
+                            </button>
+                        </span>
+                    </div>
+                </div>
+                <div class="group-join-waiting" style="display: none;">
+                    <h3>Waiting for server...</h3>
+                </div>
+            </div>
+            <div class="uw-lobby uwn" style="display: none;">
+                <h2>Lobby</h2>
+                <div class="uw-lobby-waiting">
+                    <h3>Waiting for players...</h3>
+                    <h4>Group code: <span id="grpcode">[loading]</span></h4>
+                    <div class="progress">
+                        <div class="progress-bar progress-bar-striped progress-bar-success active"
+                            id="lobby-progress" style="width: 20%">
+                        </div>
+                    </div>
+                </div>
+                <ul class="list-group" id="l-plist">
+                    <li class="list-group-item"><i class="glyphicon glyphicon-user"></i>&nbsp; myusername</li>
+                </ul>
+            </div>
+            <div class="uw-ise" style="display: none;">
+                <h2>Internal server error</h2>
+                <h4>One of our server administrators stepped on a power switch by accident.</h4>
+            </div>
+        </div>
+    </body>
+</html>
