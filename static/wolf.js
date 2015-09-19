@@ -18,18 +18,21 @@ function validate_name(sock) {
             reject(new Error('Name must be alphanumeric and between 3-15 characters long.'));
         }
         sock.emit('setname', name);
+        var nfListener = function() {
+            reject(new Error('Error setting name.'));
+        };
         var nsListener = function nsListener(setname) {
+            sock.removeListener('namefail', nfListener);
             state.name = setname;
             resolve(setname);
         };
         var timeout = setTimeout(function namesetTimeout() {
             sock.removeListener('nameset', nsListener);
+            sock.removeListener('namefail', nfListener);
             reject(new Error('Request timed out.'));
         }, 2500);
         sock.once('nameset', nsListener);
-        sock.on('namefail', function() {
-            reject(new Error('Error setting name.'));
-        });
+        sock.on('namefail', nfListener);
     });
 };
 function update_plist(list, npl, mpl) {
@@ -52,10 +55,37 @@ function create_grp(sock) {
             sock.removeListener('join', list);
             reject(new Error('Request timed out.'));
         }, 2500);
-        sock.once('join', list);
         sock.on('plist', function(obj) {
             update_plist(obj.players, obj.npl, obj.mpl);
         });
+        sock.once('join', list);
+    });
+};
+function join_grp(sock) {
+    return new Promise(function(resolve, reject) {
+        var gid = $('#group-code').val();
+        gid = gid.toUpperCase();
+        if (!/^[a-z0-9]+$/i.test(gid) || gid.length > 10 || gid.length < 2) {
+            reject(new Error('Bad Group ID - did you enter it correctly?'));
+        }
+        sock.emit('rjoin', gid);
+        var bjL = function bad_join() {
+            reject(new Error('Group does not exist.'));
+        };
+        var sjL = function good_join(id) {
+            sock.removeListener('badjoin', bjL);
+            resolve(id);
+        };
+        var timeout = setTimeout(function join_timeout() {
+            sock.removeListener('join', sjL);
+            sock.removeListener('badjoin', bjL);
+            reject(new Error('Request timed out.'));
+        }, 2500);
+        sock.on('plist', function(obj) {
+            update_plist(obj.players, obj.npl, obj.mpl);
+        });
+        sock.once('join', sjL);
+        sock.once('badjoin', bjL);
     });
 };
 $(document).ready(function ready_cb() {
@@ -98,9 +128,13 @@ $(document).ready(function ready_cb() {
         $('#group-join-confirm').click(function() {
             $('.group-join-input').hide();
             $('.group-join-waiting').show();
-            setTimeout(function() {
-                on_lobby_join();
-            }, 1000);
+            join_grp(sock).then(function(id) {
+                on_lobby_join(id);
+            }, function(err) {
+                alert(err.message);
+                $('.group-join-input').show();
+                $('.group-join-waiting').hide();
+            });
         });
     });
 });
