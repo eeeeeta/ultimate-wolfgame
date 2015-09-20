@@ -58,8 +58,14 @@ var group_leave = co.wrap(function *(sock, gid) {
     var name = yield db.hget('games/' + gid, sock.id);
     if (name != sock.name) yield Promise.reject(new Error('Player not in group'));
     yield db.hdel('games/' + gid, sock.id);
-    yield group_gen_plist(gid);
     console.log('sid ' + sock.id + ' (' + sock.name + ') leaves group ' + gid);
+    var len = yield db.hlen('games/' + gid);
+    if (len == 0) {
+        console.log('gid ' + gid + ' is now empty, deleting');
+        yield db.del('games/' + gid);
+    }
+    yield group_gen_plist(gid);
+    
 });
 io.on('connection', function(sock) {
     sock.ip = sock.request.connection.remoteAddress;
@@ -68,7 +74,7 @@ io.on('connection', function(sock) {
     sock.on('setname', function(name) {
         if (!/^[a-z0-9]+$/i.test(name) || name.length > 15 || name.length < 3) {
             sock.emit('namefail');
-            console.log('socket ' + sock.id + ' is a filthy cheater and gave invalid name ' + name);
+            console.log('socket ' + sock.id + ' gave invalid name ' + name);
         }
         else {
             sock.emit('nameset', name);

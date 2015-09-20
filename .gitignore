@@ -1,2 +1,7 @@
 *.swp
 node_modules/
+*.o
+*.a
+a.out
+*.so
+.tup/
