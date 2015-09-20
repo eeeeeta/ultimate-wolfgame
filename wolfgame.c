@@ -11,8 +11,10 @@
 #include <stdarg.h>
 #include <assert.h>
 #include "varlibs/vbuf.h"
-#define WGP_ENUMERATE(wg) for (int WGP_N = 0; WGP_N < wg->players->used; WGP_N++)
-#define EWGP ((struct wg_player *) wolfgame->players->keys[WGP_N])
+#define WGP_ENUMERATE(wg) DPA_ENUMERATE(wg->players)
+#define KCHOICE_ENUMERATE(wg) DPA_ENUMERATE(wg->kchoices)
+#define EWGP ((struct wg_player *) wolfgame->players->keys[DPA_N])
+#define EKCHOICE ((struct wg_kchoice *) wolfgame->kchoices->keys[DPA_N])
 char *ONE = "one";
 char *TWO = "two";
 char *THREE = "three";
@@ -22,6 +24,8 @@ enum wg_states { DAY, NIGHT };
 struct wg_player {
     enum wg_roles role;
     char *id;
+    int votes;
+    bool free_my_id;
     bool acted;
     bool dead;
 };
@@ -31,6 +35,7 @@ struct wg_kchoice {
 };
 struct wolfgame {
     DPA *players;
+    DPA *dead;
     DPA *kchoices;
     enum wg_states state;
 };
@@ -42,6 +47,7 @@ struct wg_player *wgp_init(void) {
     pl->id = NULL;
     pl->acted = false;
     pl->dead = false;
+    pl->free_my_id = false;
 }
 void wgp_msg(struct wg_player *wgp, char *msg) {
     printf("%s: %s\n", wgp->id, msg);
@@ -70,7 +76,7 @@ struct wg_player *wg_target(char *id) {
     }
     return NULL;
 }
-bool wg_check_day() {
+bool wg_check_day(void) {
     bool ready = true;
     WGP_ENUMERATE(wolfgame) {
         if (EWGP->role != VILLAGER && EWGP->acted == false) ready = false;
@@ -97,7 +103,7 @@ void wgp_msg_sprintf(struct wg_player *wgp, const char *format, ...) {
     va_list vali, valn;
     va_start(vali, format);
     va_copy(valn, vali);
-    int len = 0;
+    int len = 2; /* extra bytes, for safety */
     len = vsnprintf(NULL, 0, format, vali);
     char buf[len];
     vsnprintf(buf, len, format, valn);
@@ -151,11 +157,122 @@ void wgp_night(struct wg_player *wgp) {
             break;
     }
 }
-void wg_day() {
-    printf("It is now day.");
-    wolfgame->state = DAY;
+void wg_kchoice_cleanslate(void) {
+    DPA *dpa = wolfgame->kchoices;
+    DPA_ENUMERATE(dpa) {
+        free(dpa->keys[DPA_N]);
+    }
+    DPA_free(dpa);
+    wolfgame->kchoices = DPA_init();
+    assert(wolfgame->kchoices != NULL);
 }
-void wg_night() {
+struct wg_player *wg_kchoice_analyse(void) {
+    struct wg_player *wgp = NULL;
+    int mvotes = 0;
+    WGP_ENUMERATE(wolfgame) {
+        EWGP->votes = 0;
+        wgp = EWGP; /* DPA_N will get lost inside KCHOICE_ENUMERATE */
+        KCHOICE_ENUMERATE(wolfgame) {
+            if (EKCHOICE->tgt == wgp) (wgp->votes)++; /* there's some weird rule about ++ and pointers, better
+                                                         to play it safe */
+            if (wgp->votes > mvotes) mvotes = wgp->votes;
+        }
+    }
+    wg_kchoice_cleanslate();
+    WGP_ENUMERATE(wolfgame) {
+        if (EWGP->votes >= mvotes) {
+            return EWGP;
+        }
+    }
+    return NULL;
+}
+void wg_check_endgame(void) {
+    int villagers = 0;
+    int wolves = 0;
+    WGP_ENUMERATE(wolfgame) {
+        switch (EWGP->role) {
+            case WOLF:
+                wolves++;
+                break;
+            case SEER:
+                villagers++;
+                break;
+            case VILLAGER:
+                villagers++;
+                break;
+            default:
+                /* welp. */
+                assert((2+2) != 4);
+                break;
+        }
+    }
+    if (wolves >= villagers) {
+        /* outnumbered! */
+        printf("The wolves outnumber the villagers and eat them all!\n"); /* oh no :( */
+    }
+}
+void wg_kill_player(struct wg_player *wgp) {
+    /* Poor player :( */
+    wgp->dead = true;
+    DPA_rem(wolfgame->players, wgp);
+    DPA_store(wolfgame->dead, wgp);
+    wg_check_endgame();
+}
+void wg_day(void) {
+    wolfgame->state = DAY;
+    struct wg_player *wgp = wg_kchoice_analyse();
+    printf("The sun rises. The villagers, tired from the night before, get up and search the village...\n");
+    if (wgp == NULL) printf("Traces of wolf blood and fur are found near the city hall. However, no casualties are present.\n");
+    else {
+        printf("The corpse of %s is found. After further analysis, it is revealed that they were a %s.\n", wgp->id, wg_rtc(wgp->role));
+        wg_kill_player(wgp);
+    }
+    printf("The villagers must now decide who to lynch. A majority vote is required; an even split or no votes will not result in a lynching.");
+     printf("Waiting for lynch input... (press Enter)\n");
+    unsigned long millis = 0UL;
+    while (millis < 120000UL) {
+        struct pollfd pfds[1];
+        pfds[0].fd = fileno(stdin);
+        pfds[0].events = POLLIN;
+        int pollrv = -1;
+        pollrv = poll(pfds, 1, 10000);
+        if (pollrv == -1) {
+            perror("poll()");
+            assert(pollrv != -1);
+        }
+        if (pollrv != 0 && pfds[0].revents & POLLIN) {
+            printf("type input: [player] [target]\n");
+            char id[50] = {0};
+            char act[50] = {0};
+            struct wg_player *actor = NULL;
+            struct wg_player *tgt = NULL;
+            scanf("%s %s", id, act);
+            printf("Lynch input: %s lynches %s\n", id, act);
+            if ((actor = wg_target(id)) != NULL) {
+                if ((tgt = wg_target(act)) == NULL) {
+                    printf("invalid target\n");
+                }
+                else {
+                    printf("executing action: %s  upon %s\n", actor->id, tgt->id);
+                    wg_role_act(actor, tgt);
+                    bool ready = wg_check_day();
+                    printf("action executed\n");
+                    if (ready) {
+                        printf("daycheck returned true, starting transition!\n");
+                        break;
+                    }
+                }
+            }
+            else {
+                printf("invalid player");
+            }
+        }
+        millis += 10000UL;
+        if (millis > 100000UL) printf("night close to timeout\n");
+        if (millis > 120000UL) printf("night timed out\n");
+    }
+}
+void wg_night(void) {
     printf("It is now night.\n");
     wolfgame->state = NIGHT;
     WGP_ENUMERATE(wolfgame) {
@@ -173,11 +290,7 @@ void wg_night() {
             perror("poll()");
             assert(pollrv != -1);
         }
-        if (pollrv == 0) {
-            millis += 10000L;
-            continue;
-        }
-        if (pfds[0].revents & POLLIN) {
+        if (pollrv != 0 && pfds[0].revents & POLLIN) {
             printf("type role input: [player] [target]\n");
             char id[50] = {0};
             char act[50] = {0};
@@ -193,21 +306,29 @@ void wg_night() {
                     printf("executing action: %s acts upon %s\n", actor->id, tgt->id);
                     wg_role_act(actor, tgt);
                     bool ready = wg_check_day();
-                    printf("action executed - daycheck result %s\n", (ready ? "true" : "false"));
+                    printf("action executed\n");
+                    if (ready) {
+                        printf("daycheck returned true, starting transition!\n");
+                        break;
+                    }
                 }
             }
             else {
                 printf("invalid player");
             }
-            millis += 10000L;
         }
+        millis += 10000UL;
+        if (millis > 100000UL) printf("night close to timeout\n");
+        if (millis > 120000UL) printf("night timed out\n");
     }
+    printf("switching to day\n");
+    wg_day();
 }
 void role_chooser() {
     WGP_ENUMERATE(wolfgame) {
         enum wg_roles chosen = VILLAGER;
-        if (WGP_N == 0) chosen = WOLF; /* much random */
-        if (WGP_N == 1) chosen = SEER; /* very sekrit */
+        if (DPA_N == 0) chosen = WOLF; /* much random */
+        if (DPA_N == 1) chosen = SEER; /* very sekrit */
         EWGP->role = chosen;
     };
 }
@@ -216,7 +337,8 @@ int main() {
     assert(wolfgame != NULL);
     wolfgame->players = DPA_init();
     wolfgame->kchoices = DPA_init();
-    assert(wolfgame->players != NULL && wolfgame->kchoices != NULL);
+    wolfgame->dead = DPA_init();
+    assert(wolfgame->players != NULL && wolfgame->kchoices != NULL && wolfgame->dead != NULL);
     for (int x = 0; x < 4; x++) {
         struct wg_player *wgp = DPA_store(wolfgame->players, wgp_init());
         assert(wgp != NULL);
