@@ -1,0 +1,2 @@
+: wolfgame.c |> gcc -g -c %f -o %o |> wolfgame.o
+: wolfgame.o varlibs/vbuf.a |> gcc -g %f -o wolf_engine |> wolf_engine

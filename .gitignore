@@ -5,3 +5,4 @@ node_modules/
 a.out
 *.so
 .tup/
+wolf_engine
