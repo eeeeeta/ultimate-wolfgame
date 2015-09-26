@@ -63,7 +63,7 @@ struct wg_player *wgp_init(void) {
     return pl;
 }
 void wgp_msg(struct wg_player *wgp, char *msg) {
-    printf("MSG %s: %s\n", wgp->id, msg);
+    printf("MSG %s %s\n", wgp->id, msg);
 }
 void wg_amsg(char *msg) {
     printf("AMSG %s\n", msg);
@@ -406,7 +406,12 @@ int main(int argc, char *argv[]) {
     wolfgame->kchoices = DPA_init();
     wolfgame->dead = DPA_init();
     assert(wolfgame->players != NULL && wolfgame->kchoices != NULL && wolfgame->dead != NULL);
+    wg_log("[+] Switching stdio to unbuffered...\n");
+    setvbuf(stdout, NULL, _IONBF, 0);
+    setvbuf(stdin, NULL, _IONBF, 0);
+    setvbuf(stderr, NULL, _IONBF, 0);
     wg_log("[+] Waiting for server to read us plist...\n");
+    printf("PLIST\n");
     do {
         char *id = malloc(MAX_ID_LEN);
         fgets(id, (MAX_ID_LEN-1), stdin);

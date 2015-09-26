@@ -33,3 +33,6 @@ body {
 .eta {
     color: #64D455;
 }
+#start-btn {
+    width: 100%;
+}

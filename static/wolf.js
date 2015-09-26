@@ -35,15 +35,24 @@ function validate_name(sock) {
         sock.on('namefail', nfListener);
     });
 };
-function update_plist(list, npl, mpl) {
+function update_plist(list, mpl) {
     $('#l-plist').html('');
-    list.forEach(function(player) {
+    Object.keys(list).forEach(function(player) {
+        player = list[player];
         $('#l-plist').append("<li class=\"list-group-item\"><i class=\"glyphicon glyphicon-user\"></i>&nbsp;" + player + "</li>\n");
     });
-    var percent = npl / mpl;
+    var percent = Object.keys(list).length / mpl;
     percent = percent * 100;
     $('#lobby-progress').css('width', percent.toFixed(0) + '%');
-    $('#lobby-progress').html(npl + ' of ' + mpl + ' players');
+    $('#lobby-progress').html(Object.keys(list).length + ' of ' + mpl + ' players');
+    if (percent == 100) {
+        $('#start-btn').removeClass('disabled btn-danger');
+        $('#start-btn').addClass('btn-success');
+    }
+    else {
+        $('#start-btn').addClass('disabled btn-danger');
+        $('#start-btn').removeClass('btn-success');
+    }
 };
 function create_grp(sock) {
     return new Promise(function(resolve, reject) {
@@ -56,7 +65,7 @@ function create_grp(sock) {
             reject(new Error('Request timed out.'));
         }, 2500);
         sock.on('plist', function(obj) {
-            update_plist(obj.players, obj.npl, obj.mpl);
+            update_plist(obj.players, obj.mpl);
         });
         sock.once('join', list);
     });
@@ -71,6 +80,8 @@ function join_grp(sock) {
         sock.emit('rjoin', gid);
         var bjL = function bad_join(err) {
             reject(new Error('Error from server: ' + err));
+            $('.uw-lobby-starting').hide();
+                $('.uw-lobby-waiting').show();
         };
         var sjL = function good_join(id) {
             sock.removeListener('badjoin', bjL);
@@ -82,11 +93,26 @@ function join_grp(sock) {
             reject(new Error('Request timed out.'));
         }, 2500);
         sock.on('plist', function(obj) {
-            update_plist(obj.players, obj.npl, obj.mpl);
+            update_plist(obj.players, obj.mpl);
         });
+        sock.on('startcnfrm', function() {
+                $('.uw-lobby').hide();
+                $('.uw-game').show();
+            });
         sock.once('join', sjL);
         sock.once('badjoin', bjL);
     });
+};
+function start(sock) {
+        sock.emit('start');
+        var bjL = function bad_start(err) {
+            alert('Error from server: ' + err);
+        };
+        var sjL = function good_start(id) {
+            sock.removeListener('nostart', bjL);
+        };
+        sock.once('startcnfrm', sjL);
+        sock.once('nostart', bjL);
 };
 $(document).ready(function ready_cb() {
     if (!io) {
@@ -114,7 +140,7 @@ $(document).ready(function ready_cb() {
                     }, function(err) {
                         alert(err.message);
                     });
-                    }
+                }
                 $('.name-val').removeClass('disabled');
             }, function(err) {
                 alert(err.message);
@@ -135,6 +161,12 @@ $(document).ready(function ready_cb() {
                 $('.group-join-input').show();
                 $('.group-join-waiting').hide();
             });
+        });
+        $('#start-btn').click(function() {
+            if ($('#start-btn').hasClass('disabled')) return;
+            $('.uw-lobby-waiting').hide();
+            $('.uw-lobby-starting').show();
+            start(sock);
         });
     });
 });
