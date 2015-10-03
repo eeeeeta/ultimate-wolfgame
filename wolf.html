@@ -12,14 +12,19 @@
         <link rel="stylesheet" href="/wolf.css">
         <link rel="stylesheet" href="/anim.css">
     </head>
-    <body>
-        <div class="uw-headpiece">
+    <body class="transition">
+        <div class="uw-headpiece uwl-item">
             <span class="uw-title">Ultimate Wolfgame</span>
             </br>
             <a class="uw-shameless-plug" href="//theta.eu.org">an <span class="eta">&#x03b7;</span> creation</a>
         </div>
-        <div class="uw-main">
-            <div class="uw-welcome uwn">
+        <div class="uw-headpiece uwh-ingame uwg-item transition" style="display: none;">
+            <span class="uw-dn-text">Loading...</span>
+            </br>
+            <span class="uw-gstatus"><b><span id="uw-pleft">0</span></b> players remaining</span>
+        </div>
+        <div class="uw-main uwg-dn">
+            <div class="uw-welcome uwn uwl-item">
                 <h2>Welcome to Ultimate Wolfgame</h2>
                 <h4 class="init-conn">Just wait a second, we're connecting to the server...</h4>
                 <div class="init-btns animated fadeIn" style="display: none;">
@@ -56,7 +61,7 @@
                     <h3>Waiting for server...</h3>
                 </div>
             </div>
-            <div class="uw-lobby uwn" style="display: none;">
+            <div class="uw-lobby uwn uwl-item" style="display: none;">
                 <h2>Lobby</h2>
                 <div class="uw-lobby-waiting">
                     <h3>Waiting for players...</h3>
@@ -79,13 +84,19 @@
                     <li class="list-group-item"><i class="glyphicon glyphicon-user"></i>&nbsp; myusername</li>
                 </ul>
             </div>
-            <div class="uw-game" style="display: none;">
-                <h2>Game</h2>
-                <h4>Stuff will happen here.</h4>
+            <div class="uw-game uwg-item uwn" style="display: none;">
+                <h1 id="msgs" class="animated" style="display: none;">Welcome to Ultimate Wolfgame.</h1>
             </div>
             <div class="uw-ise" style="display: none;">
                 <h2>Internal server error</h2>
-                <h4>One of our server administrators stepped on a power switch by accident.</h4>
+                <h4>Oops. Maybe one of our engineers forgot a semicolon?</h4>
+                <center>
+                    <img src="https://i.imgur.com/3y69yLP.png"></img>
+                </center>
+            </div>
+            <div class="uw-loading uwn" style="display: none;">
+                <h3>Waiting..</h3>
+                <img src="/loading.gif" style="max-width: 30%"></img>
             </div>
         </div>
     </body>

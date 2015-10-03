@@ -350,7 +350,6 @@ void wg_day(void) {
 void wg_night(void) {
     wg_log("[+] It is now night.\n");
     printf("STATE NIGHT\n");
-    wgp_msg_sprintf(NULL, "It is now night.");
     wolfgame->state = NIGHT;
     WGP_ENUMERATE(wolfgame) {
         wgp_night(EWGP);

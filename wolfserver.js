@@ -15,6 +15,7 @@ var Room = function(gid) {
     this.engine = null;
     this.started = false;
     this.plist = {};
+    this.socks = [];
     this.sgid = 'games/' + gid;
 };
 var rooms = {};
@@ -42,6 +43,7 @@ var group_create = co.wrap(function *(sock, gid) {
     sock.join('games/' + gid);
     sock.emit('join', gid);
     sock.grp = gid;
+    rooms[gid].socks.push(sock);
     yield group_gen_plist(gid);
     console.log('sid ' + sock.id + ' (' + sock.name + ') creates group ' + gid);
 });
@@ -51,6 +53,7 @@ var group_join = co.wrap(function *(sock, gid) {
     rooms[gid].plist[sock.id] = sock.name;
     sock.join('games/' + gid);
     sock.emit('join', gid);
+    rooms[gid].socks.push(sock);
     sock.grp = gid;
     yield group_gen_plist(gid);
     console.log('sid ' + sock.id + ' (' + sock.name + ') joins group ' + gid);
@@ -59,14 +62,18 @@ var group_leave = co.wrap(function *(sock, gid) {
     if (!rooms[gid]) return console.log('warn: sid ' + sock.id + ' tried to leave nonexistent gid ' + gid);
     if (!rooms[gid].plist[sock.id]) yield Promise.reject(new Error('Player not in group'));
     delete rooms[gid].plist[sock.id];
+    if (rooms[gid].socks.indexOf(sock)) rooms.socks.splice(rooms[gid].socks.indexOf(sock), 1);
     console.log('sid ' + sock.id + ' (' + sock.name + ') leaves group ' + gid);
     var len = Object.keys(rooms[gid].plist);
-    if (len == 0) {
+    if (len === 0) {
         console.log('gid ' + gid + ' is now empty, deleting');
         delete rooms[gid];
+        if (rooms[gid].engine) {
+            rooms[gid].engine.quit();
+        }
     }
     yield group_gen_plist(gid);
-    
+
 });
 io.on('connection', function(sock) {
     sock.ip = sock.request.connection.remoteAddress;
@@ -136,7 +143,7 @@ io.on('connection', function(sock) {
             if (rooms[id].started) {
                 console.log('sid ' + sock.id + ' failed requesting start ' + id + ', as already started');
                 sock.emit('badjoin', 'Game started');
-                return
+                return;
             }
             console.log('joining ' + sock.id + ' to gid ' + id);
             yield group_join(sock, id);
@@ -150,42 +157,54 @@ io.on('connection', function(sock) {
         });
     });
     sock.on('start', function() {
-        co(function *() {
-            if (!sock.grp) {
-                console.log('sid ' + sock.id + ' tries to start a group without being in one');
-                sock.emit('nostart', 'Not in a group');
-                return;
-            }
-            if (!rooms[sock.grp]) {
-                console.log('sid ' + sock.id + ' tries to start nonexistent gid ' + sock.grp);
-                sock.emit('nostart', 'No such group');
-                return;
-            }
-            if (rooms[sock.grp].started) {
-                console.log('sid ' + sock.id + ' tries to start already started gid ' + sock.grp);
-                sock.emit('nostart', 'Already running');
-                return;
-            }
-            if (Object.keys(rooms[sock.grp].plist).length < 4) {
-                console.log('sid ' + sock.id + ' failed starting game, as players < 4');
-                sock.emit('nostart', 'Not enough players');
-                return;
-            }
-            console.log('starting game ' + sock.grp + ' after req from sid ' + sock.id);
-            rooms[sock.grp].started = true;
-            console.log('initialising game engine...');
-            rooms[sock.grp].engine = new Engine(sock.grp, rooms[sock.grp].plist);
-            io.to('games/' + sock.grp).emit('startcnfrm');
-            rooms[sock.grp].engine.on('ise', function() {
-                console.log('engine for ' + sock.grp + ' suffered ise');
-                io.to('games/' + sock.grp).emit('ise');
+        if (!sock.grp) {
+            console.log('sid ' + sock.id + ' tries to start a group without being in one');
+            sock.emit('nostart', 'Not in a group');
+            return;
+        }
+        if (!rooms[sock.grp]) {
+            console.log('sid ' + sock.id + ' tries to start nonexistent gid ' + sock.grp);
+            sock.emit('nostart', 'No such group');
+            return;
+        }
+        if (rooms[sock.grp].started) {
+            console.log('sid ' + sock.id + ' tries to start already started gid ' + sock.grp);
+            sock.emit('nostart', 'Already running');
+            return;
+        }
+        if (Object.keys(rooms[sock.grp].plist).length < 4) {
+            console.log('sid ' + sock.id + ' failed starting game, as players < 4');
+            sock.emit('nostart', 'Not enough players');
+            return;
+        }
+        console.log('starting game ' + sock.grp + ' after req from sid ' + sock.id);
+        rooms[sock.grp].started = true;
+        console.log('initialising game engine...');
+        rooms[sock.grp].engine = new Engine(sock.grp, rooms[sock.grp].plist);
+        io.to('games/' + sock.grp).emit('startcnfrm');
+        rooms[sock.grp].engine.on('ise', function() {
+            console.log('engine for ' + sock.grp + ' suffered ise');
+            io.to('games/' + sock.grp).emit('ise');
+        });
+        rooms[sock.grp].engine.on('state', function(state) {
+            io.to('games/' + sock.grp).emit('state', state);
+        });
+        rooms[sock.grp].engine.on('amsg', function(msg) {
+            io.to('games/' + sock.grp).emit('amsg', msg);
+        });
+        rooms[sock.grp].engine.on('msg', function(to, msg) {
+            rooms[sock.grp].socks.forEach(function(cli) {
+                if (cli.id == to) {
+                    cli.emit('msg', msg);
+                }
             });
-        }).then(function() {
-            console.log('game start (gid ' + sock.grp + ' by sid ' + sock.id + ') executed successfully');
-        }, function(err) {
-            console.error('error starting group by sid ' + sock.id);
-            console.error(err.stack);
-            sock.emit('ise');
+        });
+        rooms[sock.grp].engine.on('rolemsg', function(to, role) {
+            rooms[sock.grp].socks.forEach(function(cli) {
+                if (cli.id == to) {
+                    cli.emit('rolemsg', role);
+                }
+            });
         });
     });
 });

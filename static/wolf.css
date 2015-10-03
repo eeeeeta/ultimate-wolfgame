@@ -1,6 +1,10 @@
 body {
     font-family: "Raleway", sans-serif;
 }
+* {
+    -moz-transition: all 1s;
+    transition: all 1s;
+}
 #players-list {
     text-align: left;
 }
@@ -12,7 +16,7 @@ body {
 }
 .uw-main {
     text-align: center;
-        margin-left: 5%;
+    margin-left: 5%;
     margin-right: 5%;
 }
 .uw-headpiece {
@@ -23,8 +27,23 @@ body {
     padding-top: 20px;
     padding-bottom: 20px;
 }
+.uwg-night {
+    background: black;
+    color: white;
+}
+.uwg-day {
+    background: #E39025;
+    color: white;
+}
+.uw-loading {
+    text-align: center;
+}
 .uw-title {
     font-size: 40px;
+    font-family: 'Lobster Two', cursive;
+}
+.uw-dn-text {
+    font-size: 35px;
     font-family: 'Lobster Two', cursive;
 }
 .uw-shameless-plug {

@@ -23,7 +23,7 @@ var Engine = function(rid, plist) {
     this._pwrite = function(msg) {
         console.log('[engine ' + self.rid + '] TX: ' + msg);
         this.proc.stdin.write(msg + '\n');
-    }
+    };
     this.rli = readline.createInterface({
         input: this.proc.stdout,
         output: this.proc.stdin
@@ -32,8 +32,9 @@ var Engine = function(rid, plist) {
         input: this.proc.stderr,
         output: this.proc.stdin
     });
-    this.proc.on('exit', function(code) {
-        if (code != 0) {
+    this.proc.on('exit', function(code, signal) {
+        console.log('[engine ' + self.rid + '] Exited (code ' + code + ')');
+        if (code !== 0 && !signal) {
             console.log('WARN: engine for ' + self.rid + ' exited with code ' + code);
             self.emit('ise');
         }
@@ -41,6 +42,10 @@ var Engine = function(rid, plist) {
             self.emit('destroyed');
         }
     });
+    this.quit = function() {
+        console.log('[engine ' + self.rid + '] Killing...');
+        self.proc.kill();
+    };
     this.rli.on('line', function(line) {
         line = line.split(' ');
         console.log('[engine ' + self.rid + '] RX: ' + line);
@@ -65,6 +70,9 @@ var Engine = function(rid, plist) {
         }
         if (cmd == 'ROLEMSG') {
             self.emit('rolemsg', line[0], line[1]);
+        }
+        if (cmd == 'DEATH') {
+            self.emit('death', line[0], line[1], line[2]);
         }
         if (cmd == 'ROLEINPUT') {
             self.emit('input_now');

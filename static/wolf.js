@@ -4,13 +4,15 @@
  */
 
 var state = {
-    name: null
+    name: null,
+    night: true,
+    role: "villager"
 };
 function on_lobby_join(id) {
     $('.uw-welcome').hide();
     $('.uw-lobby').show();
     $('#grpcode').html(id);
-};
+}
 function validate_name(sock) {
     return new Promise(function(resolve, reject) {
         var name = $('#name').val();
@@ -34,7 +36,7 @@ function validate_name(sock) {
         sock.once('nameset', nsListener);
         sock.on('namefail', nfListener);
     });
-};
+}
 function update_plist(list, mpl) {
     $('#l-plist').html('');
     Object.keys(list).forEach(function(player) {
@@ -45,6 +47,7 @@ function update_plist(list, mpl) {
     percent = percent * 100;
     $('#lobby-progress').css('width', percent.toFixed(0) + '%');
     $('#lobby-progress').html(Object.keys(list).length + ' of ' + mpl + ' players');
+    $('#uw-pleft').html(Object.keys(list).length);
     if (percent == 100) {
         $('#start-btn').removeClass('disabled btn-danger');
         $('#start-btn').addClass('btn-success');
@@ -53,7 +56,7 @@ function update_plist(list, mpl) {
         $('#start-btn').addClass('disabled btn-danger');
         $('#start-btn').removeClass('btn-success');
     }
-};
+}
 function create_grp(sock) {
     return new Promise(function(resolve, reject) {
         sock.emit('create');
@@ -69,7 +72,7 @@ function create_grp(sock) {
         });
         sock.once('join', list);
     });
-};
+}
 function join_grp(sock) {
     return new Promise(function(resolve, reject) {
         var gid = $('#group-code').val();
@@ -81,7 +84,7 @@ function join_grp(sock) {
         var bjL = function bad_join(err) {
             reject(new Error('Error from server: ' + err));
             $('.uw-lobby-starting').hide();
-                $('.uw-lobby-waiting').show();
+            $('.uw-lobby-waiting').show();
         };
         var sjL = function good_join(id) {
             sock.removeListener('badjoin', bjL);
@@ -92,28 +95,98 @@ function join_grp(sock) {
             sock.removeListener('badjoin', bjL);
             reject(new Error('Request timed out.'));
         }, 2500);
-        sock.on('plist', function(obj) {
-            update_plist(obj.players, obj.mpl);
-        });
-        sock.on('startcnfrm', function() {
-                $('.uw-lobby').hide();
-                $('.uw-game').show();
-            });
         sock.once('join', sjL);
         sock.once('badjoin', bjL);
     });
-};
+}
 function start(sock) {
-        sock.emit('start');
-        var bjL = function bad_start(err) {
-            alert('Error from server: ' + err);
-        };
-        var sjL = function good_start(id) {
-            sock.removeListener('nostart', bjL);
-        };
-        sock.once('startcnfrm', sjL);
-        sock.once('nostart', bjL);
-};
+    sock.emit('start');
+    var bjL = function bad_start(err) {
+        alert('Error from server: ' + err);
+    };
+    var sjL = function good_start(id) {
+        sock.removeListener('nostart', bjL);
+    };
+    sock.once('startcnfrm', sjL);
+    sock.once('nostart', bjL);
+}
+var toDisplay = [];
+var disp_running = false;
+function r_disp_msg(msg, time) {
+    return new Promise(function(reso, rej) {
+        disp_running = true;
+        $('.uw-loading').hide();
+        $('#msgs').html(msg);
+        $('#msgs').removeClass("flipOutX");
+        $('#msgs').addClass("flipInX");
+        $('#msgs').show();
+        setTimeout(function() {
+            $('#msgs').addClass("flipOutX");
+            $('#msgs').removeClass("flipInX");
+            setTimeout(function() {
+                $('#msgs').hide();
+                if (toDisplay.length > 0) {
+                    var next = toDisplay.shift();
+                    r_disp_msg(next.msg, next.time).then(function() {
+                        disp_running = false;
+                reso();
+                    });
+                }
+                else {
+                    disp_running = false;
+                    $('.uw-loading').show();
+                    reso();
+                }
+            }, 1200);
+        }, (time || 3000));
+    });
+}
+function disp_msg(msg, time) {
+    if (disp_running) {
+        toDisplay.push({msg: msg, time: time});
+    }
+    else {
+        r_disp_msg(msg, time);
+    }
+}
+function game_state(st) {
+    var ctr = (st ? "uwg-day" : "uwg-night");
+    var cta = (st ? "uwg-night" : "uwg-day");
+    $(".uwh-ingame").removeClass(ctr);
+    $("body").removeClass(ctr);
+    $("body").addClass(cta);
+    $(".uw-dn-text").html(st ? "Nighttime" : "Daytime");
+    $(".uwh-ingame").addClass(cta);
+}
+function game_begin(sock) {
+    $('.uwl-item').hide();
+    $('.uwg-item').show();
+    game_state(true);
+    disp_msg("Welcome to Ultimate Wolfgame (beta), by eta!");
+    sock.on('state', function(st) {
+        state.night = st;
+        console.log('state: ' + st);
+        game_state(st);
+        if (st) {
+            disp_msg("It is now nighttime.");
+            disp_msg("Non-villagers will recieve instructions shortly on what to do.");
+            disp_msg("If you do not get anything, simply sit back, relax, & wait for the day.");
+        }
+        else {
+            disp_msg("It is now daytime.");
+            disp_msg("The villagers get up and search the village..");
+        }
+    });
+    sock.on('rolemsg', function(role) {
+        console.log('rolemsg: ' + role);
+        state.role = role;
+        disp_msg("You are a <b>" + role + "!");
+        if (role == "wolf") disp_msg("You may choose one person to kill per night.");
+        else if (role == "seer") disp_msg("You may divine the role of any one person per night.");
+        else disp_msg("You are unknown to me. I have no idea what to do now. :/");
+        disp_msg("Choose your desired player below.");
+    });
+}
 $(document).ready(function ready_cb() {
     if (!io) {
         alert('oh dear, socket.io failed to load - we pretty much are unusable now');
@@ -127,6 +200,12 @@ $(document).ready(function ready_cb() {
         sock.on('ise', function() {
             $('.uwn').hide();
             $('.uw-ise').show();
+        });
+        sock.on('plist', function(obj) {
+            update_plist(obj.players, obj.mpl);
+        });
+        sock.on('startcnfrm', function() {
+            game_begin(sock);
         });
         $('.name-val').click(function(ev) {
             if ($('.name-val').hasClass('disabled')) return;
