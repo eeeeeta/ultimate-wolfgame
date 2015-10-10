@@ -32,8 +32,15 @@ body {
 }
 .lgi-btn {
     position: absolute;
-    top: 5px;
-    right: 5px;
+    height: 100%;
+    top: 0px;
+    right: 0px;
+}
+.lgi-mine {
+    background: #BAFFC8;
+}
+.lgi-dead {
+    background: #FF7979;
 }
 .uwg-night {
     background: black;
@@ -41,7 +48,7 @@ body {
 }
 .uwg-day {
     background: #E39025;
-    color: white;
+    color: black;
 }
 .uw-loading {
     text-align: center;

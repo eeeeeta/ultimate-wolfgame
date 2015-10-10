@@ -6,12 +6,13 @@
 "use strict";
 var cp = require('child_process');
 var util = require('util');
+var _ = require('lodash');
 var readline = require('readline');
 var EventEmitter = require('events').EventEmitter;
 
 function subMsg(msg, plist) {
     Object.keys(plist).forEach(function(key) {
-        msg.replace('{' + key + '}', plist[key]);
+        msg = msg.replace(new RegExp('{' + key + '}', 'g'), plist[key]);
     });
     return msg;
 }
@@ -24,6 +25,7 @@ var Engine = function(rid, plist) {
         console.log('[engine ' + self.rid + '] TX: ' + msg);
         this.proc.stdin.write(msg + '\n');
     };
+    this._inputnow = false;
     this.rli = readline.createInterface({
         input: this.proc.stdout,
         output: this.proc.stdin
@@ -38,9 +40,10 @@ var Engine = function(rid, plist) {
             console.log('WARN: engine for ' + self.rid + ' exited with code ' + code);
             self.emit('ise');
         }
-        else {
             self.emit('destroyed');
-        }
+            self._pwrite = function() {};
+            self.roleinput = function() {};
+            self.quit = function() {};
     });
     this.quit = function() {
         console.log('[engine ' + self.rid + '] Killing...');
@@ -72,12 +75,58 @@ var Engine = function(rid, plist) {
             self.emit('rolemsg', line[0], line[1]);
         }
         if (cmd == 'DEATH') {
+            if (!self.plist[line[0]]) {
+                console.error('[engine ' + self.rid + '] recieved death of unknown player ' + line[0]);
+                return;
+            }
+            line[0] = self.plist[line[0]];
             self.emit('death', line[0], line[1], line[2]);
         }
         if (cmd == 'ROLEINPUT') {
             self.emit('input_now');
+            self._inputnow = true;
+            console.log('[engine ' + self.rid + '] ready for role input');
+        }
+        if (cmd == 'LYNCHINPUT') {
+            self.emit('lynch_now', line[0]);
+            self._inputnow = true;
+            console.log('[engine ' + self.rid + '] ready for lynch input');
+        }
+        if (cmd == 'NOINPUT') {
+            self._inputnow = false;
+        }
+        if (cmd == 'GAMEOVER') {
+            console.log('[engine ' + self.rid + '] finished! winner: ' + line[0]);
+            self.emit('gameover', line[0]);
+            self._inputnow = false;
+        }
+        if (cmd == 'ENDSTAT') {
+            if (!self.plist[line[0]]) {
+                console.error('[engine ' + self.rid + '] recieved endstat of unknown player ' + line[0]);
+                return;
+            }
+            line[0] = self.plist[line[0]];
+            self.emit('endstat', line[0], line[1], line[2]);
         }
     });
+    this.roleinput = function(actr, tgt) {
+        var target = null;
+        Object.keys(self.plist).forEach(function(tid) {
+            if (self.plist[tid] == tgt) target = tid;
+        });
+        if (!target) {
+            console.log('[engine ' + self.rid + '] invalid role input (target not found) (by ' + actr + ' to unknown target ' + tgt + ')');
+            return false;
+        }
+        tgt = target;
+        if (!self._inputnow) {
+            console.log('[engine ' + self.rid + '] unexpected role input (by ' + actr + ' to ' + tgt + ')');
+            return false;
+        }
+        console.log('[engine ' + self.rid + '] sending role input (by ' + actr + ' to ' + tgt + ')');
+        self._pwrite(actr + ' ' + tgt);
+        return true;
+    };
     this.lrli.on('line', function(line) {
         console.log('[engine ' + self.rid + '] ' + line);
         self.emit('dbg', line);

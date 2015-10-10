@@ -259,6 +259,9 @@ void wg_kill_player(struct wg_player *wgp, char cause) {
         case 'w':
             dcause = "wolf";
             break;
+        case 'u':
+            dcause = "disconnect";
+            break;
     }
     printf("DEATH %s %s %s\n", wgp->id, wg_rtc(wgp->role), dcause);
     wg_check_endgame();
@@ -291,7 +294,18 @@ void wg_input(void) {
             struct wg_player *actor = NULL;
             struct wg_player *tgt = NULL;
             scanf("%s %s", id, act);
-            if ((actor = wg_target(id)) != NULL) {
+            if (strcmp(id, "*DEATH") == 0) {
+                /* player disconnected/died mid-game */
+                if ((tgt = wg_target(act)) == NULL) {
+                    wg_log("[-] Invalid death reported: %s\n", act);
+                    printf("INVALIDTARGET\n");
+                }
+                else {
+                    wg_log("[+] %s dies unexpectedly.\n", tgt->id);
+                    wg_kill_player(tgt, 'u');
+                }
+            }
+            else if ((actor = wg_target(id)) != NULL) {
                 if ((tgt = wg_target(act)) == NULL) {
                     wg_log("[-] Invalid target reported: %s\n", act);
                     printf("INVALIDTARGET\n");
@@ -326,6 +340,7 @@ void wg_input(void) {
         if (millis > 100000UL) printf("WTIMEOUT\n");
         if (millis > 120000UL) printf("ETIMEOUT\n");
     }
+    printf("NOINPUT\n");
 }
 void wg_night(void);
 void wg_day(void) {

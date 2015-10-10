@@ -22,7 +22,7 @@
         <div class="uw-headpiece uwh-ingame uwg-item transition" style="display: none;">
             <span class="uw-dn-text">Loading...</span>
             </br>
-            <span class="uw-gstatus"><b><span id="uw-pleft">0</span></b> players remaining</span>
+            <span class="uw-gstatus"><b><span id="uw-pleft">0</span></b> players remaining<span class="uw-role-text" style="display: none;"> &middot; you are a <b><span class="uw-role">(role not yet known)</span></b></span></span>
         </div>
         <div class="uw-main uwg-dn">
             <div class="uw-welcome uwn uwl-item">
@@ -87,9 +87,19 @@
             </div>
             <div class="uw-game uwg-item uwn" style="display: none;">
                 <h1 id="msgs" class="animated" style="display: none;">Welcome to Ultimate Wolfgame.</h1>
+                <ul class="list-group g-plist">
+                    <li class="list-group-item"><i class="glyphicon glyphicon-user"></i>&nbsp; myusername</li>
+                </ul>
+            </div>
+            <div class="uw-gameover uwn" style="display: none;">
+                <h1>The <span class="winners">somebodies</span> win!</h2>
+                </hr>
+                <h4>Final role list</h4>
                 <ul class="list-group l-plist">
                     <li class="list-group-item"><i class="glyphicon glyphicon-user"></i>&nbsp; myusername</li>
                 </ul>
+                <h3>Thanks for playing!</h3>
+                <h4>Ultimate Wolfgame was brought to you by <a href="//theta.eu.org"><span class="eta">&eta;</span></a>.</h4>
             </div>
             <div class="uw-ise" style="display: none;">
                 <h2>Internal server error</h2>

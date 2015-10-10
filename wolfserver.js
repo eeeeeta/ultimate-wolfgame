@@ -62,13 +62,16 @@ var group_leave = co.wrap(function *(sock, gid) {
     if (!rooms[gid]) return console.log('warn: sid ' + sock.id + ' tried to leave nonexistent gid ' + gid);
     if (!rooms[gid].plist[sock.id]) yield Promise.reject(new Error('Player not in group'));
     delete rooms[gid].plist[sock.id];
-    if (rooms[gid].socks.indexOf(sock)) rooms.socks.splice(rooms[gid].socks.indexOf(sock), 1);
+    if (rooms[gid].socks.indexOf(sock)) rooms[gid].socks.splice(rooms[gid].socks.indexOf(sock), 1);
     console.log('sid ' + sock.id + ' (' + sock.name + ') leaves group ' + gid);
+    if (rooms[gid].started) {
+        rooms[gid].engine.roleinput('*DEATH', sock.id);
+    }
     var len = Object.keys(rooms[gid].plist);
     if (len === 0) {
         console.log('gid ' + gid + ' is now empty, deleting');
         delete rooms[gid];
-        if (rooms[gid].engine) {
+        if (rooms[gid].started) {
             rooms[gid].engine.quit();
         }
     }
@@ -192,6 +195,18 @@ io.on('connection', function(sock) {
         rooms[sock.grp].engine.on('amsg', function(msg) {
             io.to('games/' + sock.grp).emit('amsg', msg);
         });
+        rooms[sock.grp].engine.on('lynch_now', function(num) {
+            io.to('games/' + sock.grp).emit('lynch_now', num);
+        });
+        rooms[sock.grp].engine.on('gameover', function(win) {
+            io.to('games/' + sock.grp).emit('gameover', win);
+        });
+        rooms[sock.grp].engine.on('death', function(who, role, why) {
+            io.to('games/' + sock.grp).emit('death', who, role, why);
+        });
+        rooms[sock.grp].engine.on('endstat', function(who, role, da) {
+            io.to('games/' + sock.grp).emit('endstat', who, role, da);
+        });
         rooms[sock.grp].engine.on('msg', function(to, msg) {
             rooms[sock.grp].socks.forEach(function(cli) {
                 if (cli.id == to) {
@@ -206,5 +221,17 @@ io.on('connection', function(sock) {
                 }
             });
         });
+    });
+    sock.on("roleclick", function(tgt) {
+        if (!sock.grp || !rooms[sock.grp]) {
+            console.log("sock " + sock.id + " sent roleclick " + tgt + " without a valid grp");
+            return;
+        }
+        if (!rooms[sock.grp].started) {
+            console.log("sock " + sock.id + " sent roleclick " + tgt + " on non-started gid " + sock.grp);
+            return;
+        }
+        console.log("sock " + sock.id + " [gid " + sock.grp + "] sent roleclick " + tgt);
+        rooms[sock.grp].engine.roleinput(sock.id, tgt);
     });
 });
