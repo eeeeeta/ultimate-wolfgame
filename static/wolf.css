@@ -9,10 +9,13 @@ body {
     text-align: left;
 }
 .lgi-clickable {
-    cursor: pointer;
+    font-size: 18px;
 }
-.lgi-clickable:hover {
-    background: #E4E4E4;
+.lgi-btn:before {
+    content: "Select";
+}
+.list-group-item {
+    color: black;
 }
 .uw-main {
     text-align: center;
@@ -26,6 +29,11 @@ body {
     text-align: center;
     padding-top: 20px;
     padding-bottom: 20px;
+}
+.lgi-btn {
+    position: absolute;
+    top: 5px;
+    right: 5px;
 }
 .uwg-night {
     background: black;

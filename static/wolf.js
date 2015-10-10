@@ -6,6 +6,8 @@
 var state = {
     name: null,
     night: true,
+    started: false,
+    sock: null,
     role: "villager"
 };
 function on_lobby_join(id) {
@@ -38,11 +40,21 @@ function validate_name(sock) {
     });
 }
 function update_plist(list, mpl) {
-    $('#l-plist').html('');
+    $('.l-plist').html('');
     Object.keys(list).forEach(function(player) {
         player = list[player];
-        $('#l-plist').append("<li class=\"list-group-item\"><i class=\"glyphicon glyphicon-user\"></i>&nbsp;" + player + "</li>\n");
+        $('.l-plist').append("<li class=\"list-group-item" + (state.started ? " lgi-clickable" : "") + "\" id=\"lgi-" + player + "\"><i class=\"glyphicon glyphicon-user\"></i>&nbsp;" + player + (state.started ? "<button class=\"btn btn-primary lgi-btn\"></button>" : "") + "</li>\n");
+        if (state.started) {
+            $('.lgi-btn').each(function(idx) {
+                var obj = $('.lgi-btn')[idx];
+                $(obj).click(function(ev) {
+                    console.log("registered click: " + ev.target.id.replace("lgi-", ""));
+                    if (state.sock) state.sock.emit("roleclick", ev.target.id.replace("lgi-", ""));
+                });
+            });
+        }
     });
+    if (!state.started) {
     var percent = Object.keys(list).length / mpl;
     percent = percent * 100;
     $('#lobby-progress').css('width', percent.toFixed(0) + '%');
@@ -55,6 +67,7 @@ function update_plist(list, mpl) {
     else {
         $('#start-btn').addClass('disabled btn-danger');
         $('#start-btn').removeClass('btn-success');
+    }
     }
 }
 function create_grp(sock) {
@@ -161,6 +174,7 @@ function game_state(st) {
 function game_begin(sock) {
     $('.uwl-item').hide();
     $('.uwg-item').show();
+    state.started = true;
     game_state(true);
     disp_msg("Welcome to Ultimate Wolfgame (beta), by eta!");
     sock.on('state', function(st) {
@@ -194,6 +208,7 @@ $(document).ready(function ready_cb() {
     }
     var sock = io();
     window.ios = sock;
+    state.sock = sock;
     sock.on('connect', function connect_cb() {
         $('.init-conn').hide();
         $('.init-btns').show();
