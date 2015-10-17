@@ -1,16 +1,39 @@
 /*
  * Ultimate Wolfgame, JavaScript source
- * by eta
+ *
+ * very jQuery
+ * such terrible
+ * much spaghetti
+ * many souldestroy
+ * wow
+ *
+ * - eta
  */
 
 var state = {
     name: null,
     night: true,
     started: false,
+    finished: false,
     sock: null,
+    endstats: {},
     plist: null,
     dead: false,
+    selecting: false,
     role: "villager"
+};
+var death_msgs = {
+    wolf: [
+        "The corpse of <b>%a</b>, a <b>%b</b>, is found. Those remaining mourn the tragedy.",
+        "The half-eaten remains of the late <b>%a</b>, a <b>%b</b>, are found in the village square. How disgusting."
+    ],
+    lynch: [
+        "The villagers drag the protesting <b>%a</b> to a tree, hang them up, and lynch them. The village has lost a <b>%b</b>.",
+        "As the village try to lynch them, <b>%a</b> throws a bomb on the ground. The bomb explodes early. Those remaining mourn the loss of a <b>%b</b>."
+    ],
+    disconnect: [
+        "A disgruntled <b>%a</b>, most likely fed up with being a <b>%b</b>, takes a cyanide pill."
+    ]
 };
 function on_lobby_join(id) {
     $('.uw-welcome').hide();
@@ -43,29 +66,29 @@ function validate_name(sock) {
 }
 function update_plist(list, mpl) {
     state.plist = list;
-    $('.l-plist').html('');
-    $('.g-plist').html('');
+    if (state.started) return;
+    $('.uw-plist').show();
+    $('.uw-plist-int').html('');
     Object.keys(list).forEach(function(player) {
         player = list[player];
-        $('.l-plist').append("<li class=\"lgi-lobby-" + player + " list-group-item" + (state.name == player ? " lgi-mine" : "") + "\"><i class=\"glyphicon glyphicon-user\"></i>&nbsp;" + player + "</li>\n");
-        $('.g-plist').append("<li class=\"list-group-item" + (state.name == player ? " lgi-mine" : "") + (state.started ? " lgi-clickable" : "") + "\" id=\"lgi-" + player + "\"><i class=\"glyphicon glyphicon-user\"></i>&nbsp;" + player + "<button class=\"btn btn-primary lgi-btn\"" + (!state.started ? " style=\"display: none;\" " : "") + "id=\"lbtn-" + player + "\"></button>" + "</li>\n");
-        $('.lgi-btn').each(function(idx) {
-            var obj = $('.lgi-btn')[idx];
-            if (state.dead) $(obj).addClass('disabled');
-            if (idx % 2 === 0) $(obj).addClass('lgi-btn-left');
-            $(obj).click(function(ev) {
-                ev.stopPropagation();
-                ev.preventDefault();
-                if ($(obj).hasClass('disabled')) return;
-                $(obj).addClass('disabled');
-                setTimeout(function() {
-                    $(obj).removeClass('disabled');
-                }, 500);
-                if (state.dead) return;
-                console.log("registered click: " + ev.target.id.replace("lbtn-", ""));
-                if (state.sock) state.sock.emit("roleclick", ev.target.id.replace("lbtn-", ""));
-            });
+        var elem = $(document.createElement('div'));
+        elem.addClass("uw-plist-item");
+        elem.html("<div class='pli-text'><i class='glyphicon glyphicon-user'></i>&nbsp;" + player + "</div>");
+        elem.attr('uw-player-name', player);
+        if (state.name == player) elem.addClass('pli-me');
+        elem.click(function(ev) {
+            ev.stopPropagation();
+            if (state.dead || !state.selecting || !state.started) return;
+            if (elem.hasClass("pli-disabled")) return;
+            if (elem.hasClass("pli-dead")) return alert("That person's dead!");
+            elem.addClass("pli-disabled");
+            setTimeout(function() {
+                elem.removeClass("pli-disabled");
+            }, 500);
+            console.log("registered click: " + elem.attr('uw-player-name'));
+            if (state.sock) state.sock.emit('roleclick', elem.attr('uw-player-name'));
         });
+        $('.uw-plist-int').append(elem);
     });
     $('#uw-pleft').html(Object.keys(list).length);
     if (!state.started) {
@@ -185,12 +208,31 @@ function game_state(st) {
     $(".uw-dn-text").html(st ? "Nighttime" : "Daytime");
     $(".uwh-ingame").addClass(cta);
 }
+function role_reveal(name, role) {
+    var pelem = $('.uw-plist-item[uw-player-name="' + name + '"] .glyphicon');
+    console.log('revealing ' + name + ' as ' + role);
+    pelem.removeClass('glyphicon-user');
+    switch (role) {
+        case "villager":
+            pelem.addClass('glyphicon-ok');
+            break;
+        case "wolf":
+            pelem.addClass('glyphicon-warning-sign');
+            break;
+        case "seer":
+            pelem.addClass('glyphicon-eye-open');
+            break;
+        default:
+            pelem.addClass('glyphicon-user');
+            break;
+    }
+}
 function game_begin(sock) {
     $('.uwl-item').hide();
     $('.uwg-item').show();
     state.started = true;
     game_state(true);
-    disp_msg("Welcome to Ultimate Wolfgame (beta), by eta!");
+    disp_msg("Welcome to Ultimate Wolfgame (beta)!");
     sock.on('state', function(st) {
         state.night = st;
         console.log('state: ' + st);
@@ -202,7 +244,7 @@ function game_begin(sock) {
             disp_msg("If you do not get anything, simply sit back, relax, & wait for the day.");
         }
         else {
-            disp_msg("It is now daytime.", undefined, function() {
+            disp_msg("The sun rises.", undefined, function() {
                 game_state(st);
             });
             disp_msg("The villagers get up and search the village..");
@@ -215,15 +257,17 @@ function game_begin(sock) {
         disp_msg(msg);
     });
     sock.on('death', function(who, role, why) {
-        if (why != "disconnect") $('.lgi-btn').fadeOut();
-        var text = who + "died inexplicably.";
-        if (why == "wolf") text = "The corpse of " + who + " is found. Those remaining mourn the tragedy.";
-        else if (why == "lynch") text = "The villagers drag " + who + " to a tree, hang them up, and leave them to die.";
-        else if (why == "disconnect") text = who + ", fed up with the world, jumps off a nearby cliff.";
+        var text = "<b>" + who + "</b> died inexplicably.";
+        if (death_msgs[why]) {
+            text = death_msgs[why][Math.floor(Math.random() * death_msgs[why].length)];
+            text = text.replace('%a', who);
+            text = text.replace('%b', role);
+        }
         disp_msg(text, undefined, function() {
-            Object.keys(state.plist).forEach(function(pid) {
-                if (state.plist[pid] == who)
-                    delete state.plist[pid];
+            Object.keys(state.plist).forEach(function(key) {
+                if (state.plist[key] == who) {
+                    delete state.plist[key];
+                }
             });
             if (who == state.name) {
                 state.dead = true;
@@ -231,13 +275,13 @@ function game_begin(sock) {
                 toDisplay = [];
                 disp_msg("You died! :(");
                 disp_msg("Please take yourself out of the room to avoid sharing information.", undefined, function() {
-                        toDisplay = buf;
+                    toDisplay = buf;
                 });
             }
             $('#uw-pleft').html(Object.keys(state.plist).length);
-            $('#lgi-' + who).addClass('lgi-dead');
+            $('.uw-plist-item[uw-player-name="' + who + '"]').addClass('pli-dead');
+            role_reveal(who, role);
         });
-        disp_msg("After further investigation, it is revealed that they were a <b>" + role + "</b>.");
     });
     sock.on('rolemsg', function(role) {
         console.log('rolemsg: ' + role);
@@ -245,41 +289,54 @@ function game_begin(sock) {
         disp_msg("You are a <b>" + role + "!", undefined, function() {
             $('.uw-role').html(role);
             $('.uw-role-text').show();
+            role_reveal(state.name, role);
+            state.selecting = true;
         });
         if (role == "wolf") disp_msg("You may choose one person to kill per night.");
         else if (role == "seer") disp_msg("You may divine the role of one person per night.");
-        else disp_msg("I AM ERROR. SOMEBODY SCREWED UP.");
-        disp_msg("Choose your desired player below.", undefined, function() {
-            $('.lgi-btn').fadeIn();
-        });
+        else disp_msg("I have no idea what your role does. Good luck!");
+        disp_msg("Tap or click on your target below.");
+    });
+    sock.on('lynchvote', function(from, to) {
+        disp_msg("<b>" + from + "</b> votes for <b>" + to + "</b>.");
+    });
+    sock.on('reveal', function(who, role) {
+        console.log('reveal', who, role);
+        role_reveal(who, role);
     });
     sock.on('lynch_now', function(num) {
         console.log('lynch now');
-        disp_msg("The villagers must now decide who to lynch.");
+        disp_msg("The villagers must now decide who to lynch.", undefined, function() {
+            state.selecting = true;
+        });
         if (state.dead) return;
-        disp_msg("A majority vote is required: at least " + num + " players must vote for the same person.");
-            disp_msg("Please make a selection below.", undefined, function() {
-                $('.lgi-btn').fadeIn();
-            });
+        disp_msg("A majority vote is required: at least <b>" + num + "</b> players must vote for the same person.");
+        disp_msg("Tap or click on your target below.");
     });
     sock.on('gameover', function(winner) {
         console.log('gameover', winner);
-        disp_msg("Game over!", undefined, function() {
+        state.finished = true;
+        var text = "Game over! All the wolves are dead! The villagers chop them up, cook them, and have a nice dinner.";
+        if (winner == "wolves") text = "Game over! The wolves outnumber the villagers and kill them all!";
+        disp_msg(text, undefined, function() {
             game_state(true);
-        $('.uw-game').hide();
-        $('.uw-loading').hide();
-        $('.uw-loading').html(""); /* KILL IT DEAD */
-        $('.winners').html(winner);
-        $('.winners').css('background', (winner == "wolves" ? 'red' : 'lightgreen'));
-        $('.uw-gameover').fadeIn();
-        $(".uw-dn-text").html("Game over");
-        $(".uw-gstatus").html("thanks for playing &middot; hopefully it wasn't too buggy");
-        update_plist = function() {};
+            $('.uw-game').hide();
+            $('.uw-loading').hide();
+            $('.uw-loading').html(""); /* KILL IT DEAD */
+            $('.winners').html(winner);
+            $('.winners').css('background', (winner == "wolves" ? 'red' : 'green'));
+            $('.uw-gameover').fadeIn();
+            $(".uw-dn-text").html("Game over");
+            $(".uw-gstatus").html("thanks for playing &middot; hopefully it wasn't too buggy");
+            Object.keys(state.endstats).forEach(function(who) {
+                role_reveal(who, state.endstats[who]);
+            });
+            sock.disconnect();
         });
     });
     sock.on('endstat', function(who, role, da) {
         console.log('endstat', who, role, da);
-        $('.lgi-lobby-' + who).html('<i class=\"glyphicon glyphicon-user\"></i>&nbsp;' + who + ' - a <b>' + role + '</b>');
+        state.endstats[who] = role;
     });
 }
 $(document).ready(function ready_cb() {
@@ -287,7 +344,7 @@ $(document).ready(function ready_cb() {
         alert('oh dear, socket.io failed to load - we pretty much are unusable now');
         return;
     }
-    var sock = io();
+    var sock = io(undefined, {reconnection: false});
     window.ios = sock;
     state.sock = sock;
     sock.on('connect', function connect_cb() {
@@ -296,6 +353,14 @@ $(document).ready(function ready_cb() {
         sock.on('ise', function() {
             $('.uwn').hide();
             $('.uw-ise').show();
+        });
+        sock.on('disconnect', function() {
+            if (state.finished) return;
+            $('.uwn').hide();
+            $('.uw-disconn').show();
+        });
+        $('.uw-btn-refresh').click(function() {
+            location.reload();
         });
         sock.on('plist', function(obj) {
             update_plist(obj.players, obj.mpl);

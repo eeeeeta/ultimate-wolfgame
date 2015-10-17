@@ -134,7 +134,7 @@ void wg_kchoice_add(struct wg_player *actor, struct wg_player *tgt) {
         wgp_msg_sprintf(actor, "You select {%s} to be killed tonight.", tgt->id);
     }
     else {
-        wgp_msg_sprintf(NULL, "{%s} votes for {%s} to be lynched.", actor->id, tgt->id);
+        printf("LYNCHVOTE %s %s\n", actor->id, tgt->id);
     }
 }
 void wg_role_act(struct wg_player *actr, struct wg_player *tgt) {
@@ -142,6 +142,7 @@ void wg_role_act(struct wg_player *actr, struct wg_player *tgt) {
         case SEER:
             if (actr->acted) return wgp_msg(actr, "You may not see more than one person per night.");
             wgp_msg_sprintf(actr, "You, through your magical powers, divine {%s} to be a %s!", tgt->id, wg_rtc(tgt->role));
+            printf("REVEAL %s %s %s\n", actr->id, tgt->id, wg_rtc(tgt->role));
             actr->acted = true;
             break;
         case WOLF:
@@ -277,7 +278,14 @@ bool wg_check_lynches(void) {
 }
 void wg_input(void) {
     unsigned long millis = 0UL;
-    while (millis < 120000UL) {
+    unsigned long wait = 0UL;
+    if (wolfgame->state == DAY) {
+        wait = 300000UL;
+    }
+    else {
+        wait = 120000UL;
+    }
+    while (millis < wait) {
         struct pollfd pfds[1];
         pfds[0].fd = fileno(stdin);
         pfds[0].events = POLLIN;
@@ -337,8 +345,8 @@ void wg_input(void) {
             }
         }
         millis += 10000UL;
-        if (millis > 100000UL) printf("WTIMEOUT\n");
-        if (millis > 120000UL) printf("ETIMEOUT\n");
+        if ((wait - millis) < 30000UL) printf("WTIMEOUT\n");
+        if ((wait - millis) < 1000UL) printf("ETIMEOUT\n");
     }
     printf("NOINPUT\n");
 }

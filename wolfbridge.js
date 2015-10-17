@@ -40,10 +40,11 @@ var Engine = function(rid, plist) {
             console.log('WARN: engine for ' + self.rid + ' exited with code ' + code);
             self.emit('ise');
         }
-            self.emit('destroyed');
-            self._pwrite = function() {};
-            self.roleinput = function() {};
-            self.quit = function() {};
+        self.emit('destroyed');
+        self._pwrite = function() {};
+        self.roleinput = function() {};
+        self.killPlayer = function() {};
+        self.quit = function() {};
     });
     this.quit = function() {
         console.log('[engine ' + self.rid + '] Killing...');
@@ -74,9 +75,30 @@ var Engine = function(rid, plist) {
         if (cmd == 'ROLEMSG') {
             self.emit('rolemsg', line[0], line[1]);
         }
+        if (cmd == 'LYNCHVOTE') {
+            if (!self.plist[line[0]]) {
+                console.error('[engine ' + self.rid + '] received lynchvote of unknown player ' + line[0]);
+                return;
+            }
+            if (!self.plist[line[1]]) {
+                console.error('[engine ' + self.rid + '] received lynchvote of unknown player ' + line[1]);
+                return;
+            }
+            line[0] = self.plist[line[0]];
+            line[1] = self.plist[line[1]];
+            self.emit('lynchvote', line[0], line[1]);
+        }
+        if (cmd == 'REVEAL') {
+            if (!self.plist[line[1]]) {
+                console.error('[engine ' + self.rid + '] received reveal of unknown player ' + line[1]);
+                return;
+            }
+            line[1] = self.plist[line[1]];
+            self.emit('reveal', line[0], line[1], line[2]);
+        }
         if (cmd == 'DEATH') {
             if (!self.plist[line[0]]) {
-                console.error('[engine ' + self.rid + '] recieved death of unknown player ' + line[0]);
+                console.error('[engine ' + self.rid + '] received death of unknown player ' + line[0]);
                 return;
             }
             line[0] = self.plist[line[0]];
@@ -85,30 +107,31 @@ var Engine = function(rid, plist) {
         if (cmd == 'ROLEINPUT') {
             self.emit('input_now');
             self._inputnow = true;
-            console.log('[engine ' + self.rid + '] ready for role input');
         }
         if (cmd == 'LYNCHINPUT') {
             self.emit('lynch_now', line[0]);
             self._inputnow = true;
-            console.log('[engine ' + self.rid + '] ready for lynch input');
         }
         if (cmd == 'NOINPUT') {
             self._inputnow = false;
         }
         if (cmd == 'GAMEOVER') {
-            console.log('[engine ' + self.rid + '] finished! winner: ' + line[0]);
             self.emit('gameover', line[0]);
             self._inputnow = false;
         }
         if (cmd == 'ENDSTAT') {
             if (!self.plist[line[0]]) {
-                console.error('[engine ' + self.rid + '] recieved endstat of unknown player ' + line[0]);
+                console.error('[engine ' + self.rid + '] received endstat of unknown player ' + line[0]);
                 return;
             }
             line[0] = self.plist[line[0]];
             self.emit('endstat', line[0], line[1], line[2]);
         }
     });
+    this.killPlayer = function(tgt) {
+        console.log('[engine ' + self.rid + '] killing player ' + tgt);
+        self._pwrite('*DEATH ' + tgt);
+    };
     this.roleinput = function(actr, tgt) {
         var target = null;
         Object.keys(self.plist).forEach(function(tid) {
