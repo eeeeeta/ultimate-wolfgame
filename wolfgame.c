@@ -345,8 +345,14 @@ void wg_input(void) {
             }
         }
         millis += 10000UL;
-        if ((wait - millis) < 30000UL) printf("WTIMEOUT\n");
-        if ((wait - millis) < 1000UL) printf("ETIMEOUT\n");
+        if ((wait - millis) == 120000UL && wolfgame->state == DAY) printf("WTIMEOUT\n");
+        if ((wait - millis) == 30000UL && wolfgame->state == NIGHT) printf("WTIMEOUT\n");
+        if ((wait - millis) < 1000UL) {
+            printf("ETIMEOUT\n");
+            if (wolfgame->state == DAY) {
+                wg_kchoice_analyse(false);
+            }
+        }
     }
     printf("NOINPUT\n");
 }

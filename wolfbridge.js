@@ -119,6 +119,12 @@ var Engine = function(rid, plist) {
             self.emit('gameover', line[0]);
             self._inputnow = false;
         }
+        if (cmd == 'NOKILL') {
+            self.emit('nokill');
+        }
+        if (cmd == 'WTIMEOUT') {
+            self.emit('wtimeout');
+        }
         if (cmd == 'ENDSTAT') {
             if (!self.plist[line[0]]) {
                 console.error('[engine ' + self.rid + '] received endstat of unknown player ' + line[0]);

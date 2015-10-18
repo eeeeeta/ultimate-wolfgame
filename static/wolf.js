@@ -19,7 +19,8 @@ var state = {
     endstats: {},
     plist: null,
     dead: false,
-    selecting: false,
+    votes: {},
+    hints: [],
     role: "villager"
 };
 var death_msgs = {
@@ -69,26 +70,72 @@ function update_plist(list, mpl) {
     if (state.started) return;
     $('.uw-plist').show();
     $('.uw-plist-int').html('');
+    $('.uw-player-info-real').remove();
     Object.keys(list).forEach(function(player) {
         player = list[player];
-        var elem = $(document.createElement('div'));
-        elem.addClass("uw-plist-item");
-        elem.html("<div class='pli-text'><i class='glyphicon glyphicon-user'></i>&nbsp;" + player + "</div>");
-        elem.attr('uw-player-name', player);
-        if (state.name == player) elem.addClass('pli-me');
-        elem.click(function(ev) {
+        var pli = $(document.createElement('div'));
+        pli.addClass("uw-plist-item");
+        pli.html("<div class='pli-text'><i class='glyphicon glyphicon-user'></i>&nbsp;" + player + "</div>");
+        pli.attr('uw-player-name', player);
+        if (state.name == player) pli.addClass('pli-me');
+        var infobox = $('.uw-player-info-template').clone();
+        infobox.removeClass('uw-player-info-template');
+        infobox.addClass('uw-player-info-real');
+        infobox.attr('uw-player-name', player);
+        infobox.find('.uw-pi-name').html(player);
+        var btn = infobox.find('.uw-pi-btn-act');
+        var act_handler = function(ev) {
             ev.stopPropagation();
-            if (state.dead || !state.selecting || !state.started) return;
-            if (elem.hasClass("pli-disabled")) return;
-            if (elem.hasClass("pli-dead")) return alert("That person's dead!");
-            elem.addClass("pli-disabled");
+            ev.preventDefault();
+            pli.css("animation-name", "");
+            if (state.dead || !state.started) return console.log("ignored click");
+            if (btn.hasClass("disabled")) return;
+            if (pli.hasClass("pli-dead")) return alert("That person's dead!");
+            btn.addClass("disabled");
             setTimeout(function() {
-                elem.removeClass("pli-disabled");
+                btn.removeClass("disabled");
             }, 500);
-            console.log("registered click: " + elem.attr('uw-player-name'));
-            if (state.sock) state.sock.emit('roleclick', elem.attr('uw-player-name'));
+            console.log("registered click: " + pli.attr('uw-player-name'));
+            if (state.sock) state.sock.emit('roleclick', pli.attr('uw-player-name'));
+        };
+        btn.click(act_handler);
+        btn.addClass('disabled');
+        infobox.find('.uw-pi-btn-close').click(function(ev) {
+            ev.stopPropagation();
+            ev.preventDefault();
+            infobox.hide();
         });
-        $('.uw-plist-int').append(elem);
+        infobox.find('.uw-pi-btn-hint').click(function(ev) {
+            ev.stopPropagation();
+            ev.preventDefault();
+            if (infobox.find('.uw-pi-btn-hint').hasClass("disabled")) return;
+            infobox.find('.uw-pi-btn-hint').addClass("disabled");
+            send_hint(pli.attr('uw-player-name'));
+        });
+        infobox.find('.uw-pi-btn-hint').addClass('disabled');
+        infobox.find('.uw-pi-lgi-role').html("you don't know this person's role");
+        if (state.name == player) {
+            infobox.find('.uw-pi-lgi-me').html('this is you!');
+        }
+        pli.on("taphold", function(ev) {
+            ev.stopPropagation();
+            ev.preventDefault();
+            pli.css("animation-name", "");
+            infobox.show();
+        });
+        pli.on("vmousedown", function(ev) {
+            pli.css("animation-name", "holddown");
+        });
+        pli.on("vmouseup", function(ev) {
+            pli.css("animation-name", "");
+        });
+        pli.on("vmousecancel", function(ev) {
+            pli.css("animation-name", "");
+        });
+        pli.on("click", act_handler);
+        infobox.hide();
+        $('.uw-plist-int').append(pli);
+        $('.uw-player-info-boxes').append(infobox);
     });
     $('#uw-pleft').html(Object.keys(list).length);
     if (!state.started) {
@@ -105,6 +152,11 @@ function update_plist(list, mpl) {
             $('#start-btn').removeClass('btn-success');
         }
     }
+}
+function send_hint(name) {
+    disp_msg("Hint sent.");
+    state.sock.emit('sendhint', name);
+    $('.uw-player-info[uw-player-name="' + name + '"] .uw-pi-lgi-hint').html("<i class='glyphicon glyphicon-asterisk'></i>&nbsp;you have sent a hint to this person");
 }
 function create_grp(sock) {
     return new Promise(function(resolve, reject) {
@@ -188,7 +240,7 @@ function r_disp_msg(msg, time, cb) {
                     reso();
                 }
             }, 1200);
-        }, (time || 700 + (1000 * (msg.split(' ').length * (1 / 4.167)))));
+        }, (time || 1300 + (1000 * (msg.split(' ').length * (1 / 4.167)))));
     });
 }
 function disp_msg(msg, time, cb) {
@@ -207,29 +259,55 @@ function game_state(st) {
     $("body").addClass(cta);
     $(".uw-dn-text").html(st ? "Nighttime" : "Daytime");
     $(".uwh-ingame").addClass(cta);
+    $(".uw-pi-lgi-votes").html("");
+    state.votes = {};
 }
 function role_reveal(name, role) {
     var pelem = $('.uw-plist-item[uw-player-name="' + name + '"] .glyphicon');
+    var ielem = $('.uw-player-info[uw-player-name="' + name + '"] .uw-pi-lgi-role');
     console.log('revealing ' + name + ' as ' + role);
     pelem.removeClass('glyphicon-user');
     switch (role) {
         case "villager":
             pelem.addClass('glyphicon-ok');
-            break;
+        ielem.html('<i class="glyphicon glyphicon-ok"></i>&nbsp;this person is a villager');
+        break;
         case "wolf":
             pelem.addClass('glyphicon-warning-sign');
-            break;
+        ielem.html('<i class="glyphicon glyphicon-warning-sign"></i>&nbsp;this person is a wolf');
+        break;
         case "seer":
             pelem.addClass('glyphicon-eye-open');
-            break;
+        ielem.html('<i class="glyphicon glyphicon-eye-open"></i>&nbsp;this person is a seer');
+        break;
         default:
             pelem.addClass('glyphicon-user');
-            break;
+        ielem.html('<b>Role:</b>&nbsp' + role);
+        break;
     }
+}
+function update_votes() {
+    $('.uw-pi-lgi-votes').html("");
+    var reverse_votes = {};
+    Object.keys(state.votes).forEach(function(key) {
+        if (!state.votes[key]) return;
+        var elem = $('.uw-player-info[uw-player-name="' + key + '"] .uw-pi-lgi-votes-cast');
+        var vote = state.votes[key];
+        elem.html('<b>Voting to lynch:</b>&nbsp;' + vote);
+        if (!reverse_votes[vote]) reverse_votes[vote] = [key];
+        else reverse_votes[vote].push(key);
+    });
+    Object.keys(reverse_votes).forEach(function(key) {
+        if (!reverse_votes[key]) return;
+        var elem = $('.uw-player-info[uw-player-name="' + key + '"] .uw-pi-lgi-votes-recv');
+        var votes = reverse_votes[key];
+        elem.html('<b>Voted for by:</b>&nbsp;' + votes.join(', '));
+    });
 }
 function game_begin(sock) {
     $('.uwl-item').hide();
     $('.uwg-item').show();
+    $('.uw-pi-btn-hint').removeClass('disabled');
     state.started = true;
     game_state(true);
     disp_msg("Welcome to Ultimate Wolfgame (beta)!");
@@ -247,7 +325,7 @@ function game_begin(sock) {
             disp_msg("The sun rises.", undefined, function() {
                 game_state(st);
             });
-            disp_msg("The villagers get up and search the village..");
+            disp_msg("The villagers get up and search the village...");
         }
     });
     sock.on('msg', function(msg) {
@@ -255,6 +333,26 @@ function game_begin(sock) {
     });
     sock.on('amsg', function(msg) {
         disp_msg(msg);
+    });
+    sock.on('wtimeout', function() {
+        $('.uw-dn-text').html("Twilight");
+        if (state.night) {
+            disp_msg("<b>As the sky begins to lighten, the wolves are reminded that they do not have much time to make a decision.</b>");
+        }
+        else {
+            disp_msg("<b>As the sun approaches the horizon, the villagers are reminded that they must make a choice soon!</b>");
+            disp_msg("If there is no majority in <b>2 minutes' time</b>, the player with the <b>most amount</b> of votes will be lynched.");
+            disp_msg("A random player will be lynched if there is an even split.");
+        }
+    });
+    sock.on('hint', function(from) {
+        if (state.hints.indexOf(from) != -1) return;
+        state.hints.push(from);
+        disp_msg("<b>" + from + "</b> sent you a hint!");
+        $('.uw-player-info[uw-player-name="' + from + '"] .uw-pi-lgi-hint-recv').html("<i class='glyphicon glyphicon-asterisk'></i>&nbsp;this person sent you a hint!</i>");
+        var elem = $(document.createElement('i'));
+        elem.addClass('glyphicon glyphicon-asterisk uw-hint');
+        $('.uw-plist-item[uw-player-name="' + from + '"]').append(elem);
     });
     sock.on('death', function(who, role, why) {
         var text = "<b>" + who + "</b> died inexplicably.";
@@ -271,6 +369,7 @@ function game_begin(sock) {
             });
             if (who == state.name) {
                 state.dead = true;
+                $('.uw-dead-text').show();
                 var buf = toDisplay;
                 toDisplay = [];
                 disp_msg("You died! :(");
@@ -279,9 +378,15 @@ function game_begin(sock) {
                 });
             }
             $('#uw-pleft').html(Object.keys(state.plist).length);
+            if (why != 'disconnect') $('.uw-pi-btn-act').addClass('disabled');
             $('.uw-plist-item[uw-player-name="' + who + '"]').addClass('pli-dead');
+            $('.uw-player-info[uw-player-name="' + who + '"] .uw-pi-lgi-dead').html('this player has died');
+            $('.uw-player-info[uw-player-name="' + who + '"] .uw-pi-btns').hide();
             role_reveal(who, role);
         });
+    });
+    sock.on('nokill', function() {
+        disp_msg("Wolf markings are found outside the city hall. However, no casualties are present.");
     });
     sock.on('rolemsg', function(role) {
         console.log('rolemsg: ' + role);
@@ -290,7 +395,17 @@ function game_begin(sock) {
             $('.uw-role').html(role);
             $('.uw-role-text').show();
             role_reveal(state.name, role);
-            state.selecting = true;
+            var roleact = "Target";
+            if (role == "wolf") {
+                roleact = "Kill";
+                $('.uw-pi-btn-act').removeClass('btn-danger btn-primary').addClass('btn-danger');
+            }
+            if (role == "seer") {
+                roleact = "See";
+                $('.uw-pi-btn-act').removeClass('btn-danger btn-primary').addClass('btn-primary');
+            }
+            $('.uw-pi-btn-act').removeClass('disabled');
+            $('.uw-pi-btn-act').html(roleact);
         });
         if (role == "wolf") disp_msg("You may choose one person to kill per night.");
         else if (role == "seer") disp_msg("You may divine the role of one person per night.");
@@ -298,7 +413,10 @@ function game_begin(sock) {
         disp_msg("Tap or click on your target below.");
     });
     sock.on('lynchvote', function(from, to) {
-        disp_msg("<b>" + from + "</b> votes for <b>" + to + "</b>.");
+        disp_msg("<b>" + from + "</b> votes for <b>" + to + "</b>.", undefined, function() {
+            state.votes[from] = to;
+            update_votes();
+        });
     });
     sock.on('reveal', function(who, role) {
         console.log('reveal', who, role);
@@ -307,7 +425,8 @@ function game_begin(sock) {
     sock.on('lynch_now', function(num) {
         console.log('lynch now');
         disp_msg("The villagers must now decide who to lynch.", undefined, function() {
-            state.selecting = true;
+            $('.uw-pi-btn-act').removeClass('btn-danger disabled btn-primary').addClass('btn-danger');
+            $('.uw-pi-btn-act').html('Lynch');
         });
         if (state.dead) return;
         disp_msg("A majority vote is required: at least <b>" + num + "</b> players must vote for the same person.");

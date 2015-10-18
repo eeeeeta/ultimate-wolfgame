@@ -6,7 +6,10 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
         <link href='https://fonts.googleapis.com/css?family=Lobster+Two|Raleway' rel='stylesheet' type='text/css'>
+        <script src="/prefixfree.js"></script>
         <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+        <script src="/jquery.mobile.custom.min.js"></script>
+        <script src="/prefixfree-jquery.js"></script>
         <script src="/socket.io/socket.io.js"></script>
         <script src="/bluebird.min.js"></script>
         <script src="/wolf.js"></script>
@@ -22,7 +25,7 @@
         <div class="uw-headpiece uwh-ingame uwg-item transition" style="display: none;">
             <span class="uw-dn-text">Loading...</span>
             </br>
-            <span class="uw-gstatus"><b><span id="uw-pleft">0</span></b> players remaining<span class="uw-role-text" style="display: none;"> &middot; you are a <b><span class="uw-role">(role not yet known)</span></b></span></span>
+            <span class="uw-gstatus"><b><span id="uw-pleft">0</span></b> players remaining<span class="uw-role-text" style="display: none;"> &middot; you are a <b><span class="uw-role">(role not yet known)</span></b></span><span class="uw-dead-text" style="display: none;"> &middot; you are dead</span>
         </div>
         <div class="uw-main uwg-dn">
             <div class="uw-welcome uwn uwl-item">
@@ -95,6 +98,31 @@
                 <h3>Thanks for playing!</h3>
                 <h4>Ultimate Wolfgame was brought to you by <a href="//theta.eu.org"><span class="eta">&eta;</span></a>.</h4>
                 <button class="btn btn-lg btn-success uw-btn-refresh">Play another!</button>
+            </div>
+            <div class="uw-player-info-boxes uwn">
+                <div class="uw-player-info uw-player-info-template col-sm-6 col-xs-12 col-lg-3">
+                    <div class="uw-pi-header">
+                        <h3 class="uw-pi-name">someplayer</h3>
+                        <button class="btn btn-default uw-pi-btn-close"><i class="glyphicon glyphicon-remove"></i></button>
+                    </div>
+                    <div class="uw-pi-btns row">
+                        <div class="col-sm-6 col-xs-6">
+                            <button class="btn uw-pi-btn uw-pi-btn-act disabled btn-danger">Lynch</button>
+                        </div>
+                        <div class="col-sm-6 col-xs-6">
+                            <button class="btn uw-pi-btn uw-pi-btn-msafe uw-pi-btn-hint">Hint</button>
+                        </div>
+                    </div>
+                    <ul class="uw-pi-lg list-group">
+                        <li class="list-group-item uw-pi-lgi-me"></li>
+                        <li class="list-group-item uw-pi-lgi-dead"></li>
+                        <li class="list-group-item uw-pi-lgi-role"></li>
+                        <li class="list-group-item uw-pi-lgi-votes uw-pi-lgi-votes-cast"></li>
+                        <li class="list-group-item uw-pi-lgi-votes uw-pi-lgi-votes-recv"></li>
+                        <li class="list-group-item uw-pi-lgi-hint"></li>
+                        <li class="list-group-item uw-pi-lgi-hint-recv"></li>
+                    </ul>
+                </div>
             </div>
             <div class="uw-plist uwn" style="display: none;">
                 <h3>Player list</h3>

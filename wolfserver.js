@@ -123,7 +123,14 @@ var Room = function(gid) {
         self.engine.on('gameover', function(win) {
             sock.emit('gameover', win);
         });
+        self.engine.on('nokill', function() {
+            sock.emit('nokill');
+        });
+        self.engine.on('wtimeout', function() {
+            sock.emit('wtimeout');
+        });
         self.engine.on('death', function(who, role, why) {
+            if (who == sock.name) sock.dead = true;
             sock.emit('death', who, role, why);
         });
         self.engine.on('lynchvote', function(from, to) {
@@ -146,6 +153,22 @@ var Room = function(gid) {
             if (sock.id == to) {
                 sock.emit('rolemsg', role);
             }
+        });
+        sock.on("roleclick", function(tgt) {
+            log.info(humanise(sock) + " sent roleclick " + tgt, {sid: sock.id, gid: self.gid});
+            self.engine.roleinput(sock.id, tgt);
+        });
+        sock.on("sendhint", function(to, player) {
+            if (sock.dead) {
+                log.info(humanise(sock) + " tried to send a hint, but they are dead!", {sid: sock.id, gid: self.gid});
+                return;
+            }
+            self.socks.forEach(function(sck) {
+                if (sck.name == to && !sck.dead) {
+                    log.info(humanise(sock) + " sent hint to " + humanise(sck), {sid: sock.id, target: sck.id, gid: self.gid});
+                    sck.emit("hint", sock.name);
+                }
+            });
         });
     };
     this.emitAll = function() {
@@ -194,6 +217,7 @@ io.on('connection', function(sock) {
     sock.ip = sock.request.connection.remoteAddress;
     sock.name = null;
     sock.grp = null;
+    sock.dead = false;
     log.info('new connection from IP ' + sock.ip + ' (id: ' + sock.id + ')', {
         sid: sock.id,
         ip: sock.ip
@@ -294,17 +318,5 @@ io.on('connection', function(sock) {
             return;
         }
         rooms[sock.grp].start(sock);
-    });
-    sock.on("roleclick", function(tgt) {
-        if (!sock.grp || !rooms[sock.grp]) {
-            log.info(humanise(sock) + " sent roleclick " + tgt + " without a valid group", {sid: sock.id});
-            return;
-        }
-        if (!rooms[sock.grp].started) {
-            console.log("sock " + sock.id + " sent roleclick " + tgt + " on non-started gid " + sock.grp);
-            return;
-        }
-        console.log("sock " + sock.id + " [gid " + sock.grp + "] sent roleclick " + tgt);
-        rooms[sock.grp].engine.roleinput(sock.id, tgt);
     });
 });

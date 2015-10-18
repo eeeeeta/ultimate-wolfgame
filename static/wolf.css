@@ -30,16 +30,85 @@ body {
     padding-top: 20px;
     padding-bottom: 20px;
 }
+.uw-pi-btns {
+    margin-left: 0px;
+    margin-right: 0px;
+}
+.uw-pi-header {
+    width: 100%;
+    height: 40px;
+    position: relative;
+    padding-top: 5px;
+    border-bottom: 1px solid black;
+    background: #C587FF;
+}
+.uw-pi-name {
+    margin: 0px 0;
+}
+.uw-pi-lg {
+    margin: 0px;
+    border-radius: 0px;
+    margin-bottom: 1px;
+}
+.uw-pi-lgi {
+    border-radius: 0px;
+}
+.col-sm-6, .col-sm-4, .col-xs-12, .col-lg-3 {
+    padding: 0px !important;
+}
+.uw-pi-btn {
+    border-radius: 0px;
+    padding: 10px 12px;
+    width: 100%;
+}
+.uw-pi-btns {
+    border-bottom: 1px solid black;
+}
 .uw-plist-item {
     background: #FFF;
     border-radius: 5px;
     height: 60px;
     color: #000;
+    position: relative;
     display: inline-block;
     min-width: 300px;
     margin: 5px;
     border: 1px solid black;
     transition: all 1s;
+    animation-duration: 0.5s;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+}
+.uw-hint {
+    position: absolute;
+    font-size: 18px;
+    top: 4px;
+    right: 4px;
+}
+.uw-pi-btn-close {
+    position: absolute;
+    font-size: 18px;
+    height: 38.5px;
+    border-radius: 0px 5px;
+    border: none;
+    right: 0px;
+    top: 0px;
+}
+.uw-player-info {
+    background: #FFF;
+    border-radius: 5px;
+    color: #000;
+    display: inline-block;
+    margin-top: 5px;
+    margin-bottom: 5px;
+    border: 1px solid black;
+    transition: all 1s;
+}
+.list-group-item:empty {
+    display: none;
+}
+.uw-player-info-template {
+    display: none;
 }
 @keyframes loading-ball {
     0%, 100% {
@@ -49,18 +118,46 @@ body {
         transform: translateX(100px) scale(0.5);
     }
 }
+@keyframes holddown {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.1);
+    }
+}
+.uw-player-info:only-child {
+    width: 100% !important;
+}
 .uw-loading-circle {
     width: 20px;
     height: 20px;
     background: #6646E6;
     border-radius: 50%;
     display: inline-block;
-    animation: loading-ball 3s infinite;
-    animation-direction: alternate;
+    animation: loading-ball 2s infinite;
+    animation-timing-function: ease-in-out;
 }
-
-.pli-dead {
+.uw-pi-lgi-dead {
     background: #FC6E6E;
+    font-weight: bold;
+}
+.uw-pi-lgi-me {
+    background: #6EFC70;
+    font-weight: bold;
+}
+.uw-pi-btn-hint {
+    background: #7109F2;
+    color: white !important;
+}
+.uw-pi-btn-hint:hover {
+    background: #4A00A7;
+}
+.uw-pi-lgi-hint, .uw-pi-lgi-hint-recv, .glyphicon-asterisk {
+    color: #7109F2;
+}
+.pli-dead {
+    background: #FC6E6E !important;
 }
 .pli-me {
     background: #6EFC70;
