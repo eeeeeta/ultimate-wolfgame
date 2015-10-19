@@ -12,6 +12,7 @@
 #include <time.h>
 #include <sys/stat.h>
 #include <assert.h>
+#include <unistd.h>
 #include "varlibs/vbuf.h"
 #define WGP_ENUMERATE(wg) DPA_ENUMERATE(wg->players)
 #define WGP_ENUMERATE_DEAD(wg) DPA_ENUMERATE(wg->dead)
@@ -24,8 +25,7 @@ char *ONE = "one";
 char *TWO = "two";
 char *THREE = "three";
 char *FOUR = "four";
-enum wg_roles { VILLAGER, WOLF, SEER, NONE };
-enum wg_roles conf_4p[2] = { SEER, WOLF };
+enum wg_roles { VILLAGER, WOLF, SEER, CURSED, DRUNK, NONE };
 enum wg_states { DAY, NIGHT };
 struct wg_player {
     enum wg_roles role;
@@ -34,6 +34,11 @@ struct wg_player {
     bool free_my_id;
     bool acted;
     bool dead;
+};
+struct wg_roleset {
+    int nroles;
+    int minplayers;
+    enum wg_roles roles[];
 };
 struct wg_kchoice {
     struct wg_player *actor;
@@ -63,10 +68,10 @@ struct wg_player *wgp_init(void) {
     return pl;
 }
 void wgp_msg(struct wg_player *wgp, char *msg) {
-    printf("MSG %s %s\n", wgp->id, msg);
+    printf("MSG/%s/%s\n", wgp->id, msg);
 }
 void wg_amsg(char *msg) {
-    printf("AMSG %s\n", msg);
+    printf("AMSG/%s\n", msg);
 }
 void wgp_msg_sprintf(struct wg_player *wgp, const char *format, ...) {
     va_list vali, valn;
@@ -92,7 +97,7 @@ struct wg_player *wg_target(char *id) {
 bool wg_check_day(void) {
     bool ready = true;
     WGP_ENUMERATE(wolfgame) {
-        if (EWGP->role != VILLAGER && EWGP->acted == false) ready = false;
+        if (EWGP->acted == false) ready = false;
     }
     return ready;
 }
@@ -107,6 +112,12 @@ const char *wg_rtc(enum wg_roles role) {
         case VILLAGER:
             return "villager";
             break;
+        case CURSED:
+            return "cursed villager";
+            break;
+        case DRUNK:
+            return "village drunk";
+            break;
         default:
             return "glitch";
             break;
@@ -114,7 +125,7 @@ const char *wg_rtc(enum wg_roles role) {
 }
 void wg_kchoice_add(struct wg_player *actor, struct wg_player *tgt) {
     if (actor == tgt && wolfgame->state != DAY) {
-        wgp_msg(actor, "Suicide is bad! Don't do it.");
+        wgp_msg(actor, "Well, that's one way of thinking about it...");
         return;
     }
     struct wg_kchoice *wgk = malloc(sizeof(struct wg_kchoice));
@@ -131,18 +142,25 @@ void wg_kchoice_add(struct wg_player *actor, struct wg_player *tgt) {
     DPA_store(wolfgame->kchoices, wgk);
     if (wolfgame->state == NIGHT) {
         actor->acted = true;
-        wgp_msg_sprintf(actor, "You select {%s} to be killed tonight.", tgt->id);
+        WGP_ENUMERATE(wolfgame) {
+            if (EWGP->role == WOLF) {
+                printf("WOLFTGT/%s/%s/%s\n", EWGP->id, actor->id, tgt->id);
+            };
+        }
     }
     else {
-        printf("LYNCHVOTE %s %s\n", actor->id, tgt->id);
+        printf("LYNCHVOTE/%s/%s\n", actor->id, tgt->id);
     }
 }
 void wg_role_act(struct wg_player *actr, struct wg_player *tgt) {
     switch (actr->role) {
         case SEER:
             if (actr->acted) return wgp_msg(actr, "You may not see more than one person per night.");
-            wgp_msg_sprintf(actr, "You, through your magical powers, divine {%s} to be a %s!", tgt->id, wg_rtc(tgt->role));
-            printf("REVEAL %s %s %s\n", actr->id, tgt->id, wg_rtc(tgt->role));
+            const char *desc = "unknown";
+            if (tgt->role == CURSED) desc = "wolf";
+            else desc = wg_rtc(tgt->role);
+            wgp_msg_sprintf(actr, "You, through your magical powers, divine {%s} to be a %s!", tgt->id, desc);
+            printf("REVEAL/%s/%s/%s\n", actr->id, tgt->id, desc);
             actr->acted = true;
             break;
         case WOLF:
@@ -156,14 +174,19 @@ void wg_role_act(struct wg_player *actr, struct wg_player *tgt) {
 void wgp_night(struct wg_player *wgp) {
     switch (wgp->role) {
         case SEER:
-            printf("ROLEMSG %s seer\n", wgp->id);
+            printf("ROLEMSG/%s/seer\n", wgp->id);
             wgp->acted = false;
             break;
         case WOLF:
-            printf("ROLEMSG %s wolf\n", wgp->id);
+            printf("ROLEMSG/%s/wolf\n", wgp->id);
             wgp->acted = false;
             break;
+        case DRUNK:
+            printf("ROLEMSG/%s/village drunk\n", wgp->id);
+            wgp->acted = true;
+            break;
         default:
+            wgp->acted = true;
             break;
     }
 }
@@ -209,10 +232,10 @@ struct wg_player *wg_kchoice_analyse(bool majority) {
 }
 void wg_gameover(void) {
     WGP_ENUMERATE(wolfgame) {
-        printf("ENDSTAT %s %s alive\n", EWGP->id, wg_rtc(EWGP->role));
+        printf("ENDSTAT/%s/%s/alive\n", EWGP->id, wg_rtc(EWGP->role));
     }
     WGP_ENUMERATE_DEAD(wolfgame) {
-        printf("ENDSTAT %s %s dead\n", EDWGP->id, wg_rtc(EDWGP->role));
+        printf("ENDSTAT/%s/%s/dead\n", EDWGP->id, wg_rtc(EDWGP->role));
     }
     printf("BYE\n");
     exit(0);
@@ -225,25 +248,18 @@ void wg_check_endgame(void) {
             case WOLF:
                 wolves++;
                 break;
-            case SEER:
-                villagers++;
-                break;
-            case VILLAGER:
-                villagers++;
-                break;
             default:
-                /* welp. */
-                assert((2+2) != 4);
+                villagers++;
                 break;
         }
     }
     if (wolves >= villagers) {
         /* outnumbered! */
-        printf("GAMEOVER wolves\n"); /* oh no :( */
+        printf("GAMEOVER/wolves\n"); /* oh no :( */
         wg_gameover();
     }
     if (wolves == 0) {
-        printf("GAMEOVER villagers\n");
+        printf("GAMEOVER/villagers\n");
         wg_gameover();
     }
 }
@@ -264,7 +280,7 @@ void wg_kill_player(struct wg_player *wgp, char cause) {
             dcause = "disconnect";
             break;
     }
-    printf("DEATH %s %s %s\n", wgp->id, wg_rtc(wgp->role), dcause);
+    printf("DEATH/%s/%s/%s\n", wgp->id, wg_rtc(wgp->role), dcause);
     wg_check_endgame();
 }
 bool wg_check_lynches(void) {
@@ -359,7 +375,7 @@ void wg_input(void) {
 void wg_night(void);
 void wg_day(void) {
     wg_log("[+] It is now day.\n");
-    printf("STATE DAY\n");
+    printf("STATE/DAY\n");
     wolfgame->state = DAY;
     struct wg_player *wgp = wg_kchoice_analyse(false);
     wg_log("[+] The sun rises. The villagers, tired from the night before, get up and search the village...\n");
@@ -372,13 +388,13 @@ void wg_day(void) {
         wg_kill_player(wgp, 'w');
     }
     wg_log("[+] The villagers must now decide who to lynch. (votes required: %d)\n", wg_calc_majority());
-    printf("LYNCHINPUT %d\n", wg_calc_majority());
+    printf("LYNCHINPUT/%d\n", wg_calc_majority());
     wg_input();
     wg_night();
 }
 void wg_night(void) {
     wg_log("[+] It is now night.\n");
-    printf("STATE NIGHT\n");
+    printf("STATE/NIGHT\n");
     wolfgame->state = NIGHT;
     WGP_ENUMERATE(wolfgame) {
         wgp_night(EWGP);
@@ -408,13 +424,22 @@ static void arr_shuffle(void *array, size_t n, size_t size) {
         }
     }
 }
+/*
+ * Rolesets!
+ */
+struct wg_roleset roleset_4p = {2, 4, {SEER, WOLF}};
+struct wg_roleset roleset_6p = {4, 6, {SEER, WOLF, DRUNK, CURSED}};
 
-void role_chooser(enum wg_roles cfg[], int nroles) {
+void role_chooser(struct wg_roleset *roleset) {
     srand(time(NULL));
     wg_log("[+] Choosing roles...\n");
+    if (roleset->minplayers > wolfgame->players->used) {
+        wg_log("[-] Error: Chosen roleset requires more players than given!\n");
+        exit(3);
+    }
     enum wg_roles role_array[wolfgame->players->used];
     for (int x = 0; x < wolfgame->players->used; x++) {
-        if ((nroles - 1) >= x) role_array[x] = cfg[x];
+        if ((roleset->nroles - 1) >= x) role_array[x] = roleset->roles[x];
         else role_array[x] = VILLAGER;
     }
     arr_shuffle(role_array, wolfgame->players->used, sizeof(enum wg_roles));
@@ -425,7 +450,9 @@ void role_chooser(enum wg_roles cfg[], int nroles) {
     };
 }
 int main(int argc, char *argv[]) {
-    wg_log("[#] Ultimate Wolfgame Engine, v0.0.1\n");
+    int opt;
+    struct wg_roleset *roleset = NULL;
+    wg_log("[#] Ultimate Wolfgame Engine, v0.1.1\n");
     wg_log("[#] a silly thing, by eta\n");
     wg_log("[+] Initialising memory structures...\n");
     wolfgame = malloc(sizeof(struct wolfgame));
@@ -438,6 +465,31 @@ int main(int argc, char *argv[]) {
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stdin, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
+    wg_log("[+] Parsing command line options...\n");
+    while ((opt = getopt(argc, argv, "c:")) != -1) {
+        switch (opt) {
+            case 'c':
+                switch (atoi(optarg)) {
+                    case 0:
+                        roleset = &roleset_4p;
+                        wg_log("[+] Using 4 player traditional roleset\n");
+                        break;
+                    case 1:
+                        roleset = &roleset_6p;
+                        wg_log("[+] Using 6 player traditional roleset\n");
+                        break;
+                    default:
+                        wg_log("[-] Unrecognised roleset!");
+                        return EXIT_FAILURE;
+                        break;
+                }
+                break;
+            default:
+                wg_log("[-] Unrecognized command line options!");
+                return EXIT_FAILURE;
+                break;
+        }
+    }
     wg_log("[+] Waiting for server to read us plist...\n");
     printf("PLIST\n");
     do {
@@ -454,6 +506,17 @@ int main(int argc, char *argv[]) {
         assert(DPA_store(wolfgame->players, wgp) != NULL);
         wg_log("[+] Created entry for player %s\n", wgp->id);
     } while (true);
-    role_chooser(conf_4p, 2);
+    if (roleset == NULL) {
+        wg_log("[+] Automatically choosing roleset...\n");
+        if (wolfgame->players->used >= 6) {
+            wg_log("[+] Using 6 player traditional roleset (use -c to change)\n");
+            roleset = &roleset_6p;
+        }
+        else {
+            wg_log("[+] Using 4 player traditional roleset (use -c to change)\n");
+            roleset = &roleset_4p;
+        }
+    }
+    role_chooser(roleset);
     wg_night();
 };

@@ -159,17 +159,41 @@ body {
 .pli-dead {
     background: #FC6E6E !important;
 }
+.pli-targeted {
+    background: #FCA56E !important;
+}
 .pli-me {
     background: #6EFC70;
 }
+.pli-votes {
+    font-family: "Lobster Two", cursive;
+    position: absolute;
+    z-index: 7;
+    font-size: 24px;
+    top: 0px;
+    padding: 4px;
+    background: rgb(255, 63, 0);
+    left: 0px;
+    border-bottom-right-radius: 5px;
+    z-index: 7;
+}
+.pli-votes:empty {
+    display: none;
+}
 .glyphicon-eye-open {
     color: #2B0377;
+}
+.glyphicon-glass {
+    color: #FF7F2A;
 }
 .glyphicon-warning-sign {
     color: rgb(255, 69, 69);
 }
 .glyphicon-ok {
     color: rgb(26, 116, 17);
+}
+.uw-icon-cursed {
+    color: #BC0000 !important;
 }
 .pli-text {
     font-size: 22px;

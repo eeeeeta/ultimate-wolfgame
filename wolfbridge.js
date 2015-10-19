@@ -16,6 +16,7 @@ function subMsg(msg, plist) {
     });
     return msg;
 }
+
 var Engine = function(rid, plist) {
     let self = this;
     this.rid = rid;
@@ -24,6 +25,13 @@ var Engine = function(rid, plist) {
     this._pwrite = function(msg) {
         console.log('[engine ' + self.rid + '] TX: ' + msg);
         this.proc.stdin.write(msg + '\n');
+    };
+    this._idton = function(id) {
+        if (!self.plist[id]) {
+            console.error('[engine ' + self.rid + '] idton() called on unknown id ' + id);
+            return false;
+        }
+        return self.plist[id];
     };
     this._inputnow = false;
     this.rli = readline.createInterface({
@@ -51,7 +59,7 @@ var Engine = function(rid, plist) {
         self.proc.kill();
     };
     this.rli.on('line', function(line) {
-        line = line.split(' ');
+        line = line.split('/');
         console.log('[engine ' + self.rid + '] RX: ' + line);
         let cmd = line.shift();
         if (cmd == 'PLIST') {
@@ -76,32 +84,19 @@ var Engine = function(rid, plist) {
             self.emit('rolemsg', line[0], line[1]);
         }
         if (cmd == 'LYNCHVOTE') {
-            if (!self.plist[line[0]]) {
-                console.error('[engine ' + self.rid + '] received lynchvote of unknown player ' + line[0]);
-                return;
-            }
-            if (!self.plist[line[1]]) {
-                console.error('[engine ' + self.rid + '] received lynchvote of unknown player ' + line[1]);
-                return;
-            }
-            line[0] = self.plist[line[0]];
-            line[1] = self.plist[line[1]];
+            if (!(line[0] = self._idton(line[0])) || !(line[1] = self._idton(line[1]))) return;
             self.emit('lynchvote', line[0], line[1]);
         }
+        if (cmd == 'WOLFTGT') {
+            if (!(line[1] = self._idton(line[1])) || !(line[2] = self._idton(line[2]))) return;
+            self.emit('wolftgt', line[0], line[1], line[2]);
+        }
         if (cmd == 'REVEAL') {
-            if (!self.plist[line[1]]) {
-                console.error('[engine ' + self.rid + '] received reveal of unknown player ' + line[1]);
-                return;
-            }
-            line[1] = self.plist[line[1]];
+            if (!(line[1] = self._idton(line[1]))) return;
             self.emit('reveal', line[0], line[1], line[2]);
         }
         if (cmd == 'DEATH') {
-            if (!self.plist[line[0]]) {
-                console.error('[engine ' + self.rid + '] received death of unknown player ' + line[0]);
-                return;
-            }
-            line[0] = self.plist[line[0]];
+            if (!(line[0] = self._idton(line[0]))) return;
             self.emit('death', line[0], line[1], line[2]);
         }
         if (cmd == 'ROLEINPUT') {
@@ -126,11 +121,7 @@ var Engine = function(rid, plist) {
             self.emit('wtimeout');
         }
         if (cmd == 'ENDSTAT') {
-            if (!self.plist[line[0]]) {
-                console.error('[engine ' + self.rid + '] received endstat of unknown player ' + line[0]);
-                return;
-            }
-            line[0] = self.plist[line[0]];
+            if (!(line[0] = self._idton(line[0]))) return;
             self.emit('endstat', line[0], line[1], line[2]);
         }
     });

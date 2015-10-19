@@ -28,7 +28,7 @@ var Room = function(gid) {
                 conflict_name = true;
             }
         });
-        if (self.started || self.socks.length >= 4 || conflict_name) {
+        if (self.started || self.socks.length >= 6 || conflict_name) {
             let reason = "too many players";
             if (self.started) reason = "game started";
             if (conflict_name) reason = "another person in this group has the same name as you";
@@ -135,6 +135,10 @@ var Room = function(gid) {
         });
         self.engine.on('lynchvote', function(from, to) {
             sock.emit('lynchvote', from, to);
+        });
+        self.engine.on('wolftgt', function(tgt, from, to) {
+            if (tgt != sock.id) return;
+            sock.emit('wolftgt', from, to);
         });
         self.engine.on('endstat', function(who, role, da) {
             sock.emit('endstat', who, role, da);

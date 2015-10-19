@@ -30,11 +30,17 @@ var death_msgs = {
     ],
     lynch: [
         "The villagers drag the protesting <b>%a</b> to a tree, hang them up, and lynch them. The village has lost a <b>%b</b>.",
-        "As the village try to lynch them, <b>%a</b> throws a bomb on the ground. The bomb explodes early. Those remaining mourn the loss of a <b>%b</b>."
+        "The villagers, after a heated debate, decide to lynch <b>%a</b>... a <b>%b</b>.",
+        "An angry mob descends on <b>%a</b> and takes them to the gallows. After a rather painful execution, it is revealed that they were a <b>%b</b>"
     ],
     disconnect: [
         "A disgruntled <b>%a</b>, most likely fed up with being a <b>%b</b>, takes a cyanide pill."
     ]
+};
+var role_msgs = {
+    "seer": "You are a <b>seer</b>!</br><small>You may have one vision per night, in which you discover another player's role.</small>",
+    "wolf": "You are a <b>werewolf</b>!</br><small>You may kill one player per night.</small>",
+    "village drunk": "You have been drinking too much! You are the <b>village drunk</b>!"
 };
 function on_lobby_join(id) {
     $('.uw-welcome').hide();
@@ -75,7 +81,7 @@ function update_plist(list, mpl) {
         player = list[player];
         var pli = $(document.createElement('div'));
         pli.addClass("uw-plist-item");
-        pli.html("<div class='pli-text'><i class='glyphicon glyphicon-user'></i>&nbsp;" + player + "</div>");
+        pli.html("<span class='pli-votes'></span><div class='pli-text'><i class='glyphicon pli-icon glyphicon-user'></i>&nbsp;" + player + "</div>");
         pli.attr('uw-player-name', player);
         if (state.name == player) pli.addClass('pli-me');
         var infobox = $('.uw-player-info-template').clone();
@@ -139,11 +145,12 @@ function update_plist(list, mpl) {
     });
     $('#uw-pleft').html(Object.keys(list).length);
     if (!state.started) {
-        var percent = Object.keys(list).length / mpl;
+        var percent = Object.keys(list).length / 4;
         percent = percent * 100;
+        if (percent > 100) percent = 100;
         $('#lobby-progress').css('width', percent.toFixed(0) + '%');
-        $('#lobby-progress').html(Object.keys(list).length + ' of ' + mpl + ' players');
-        if (percent == 100) {
+        $('#lobby-progress').html(Object.keys(list).length + ' of 4 players');
+        if (percent >= 100) {
             $('#start-btn').removeClass('disabled btn-danger');
             $('#start-btn').addClass('btn-success');
         }
@@ -259,14 +266,14 @@ function game_state(st) {
     $("body").addClass(cta);
     $(".uw-dn-text").html(st ? "Nighttime" : "Daytime");
     $(".uwh-ingame").addClass(cta);
-    $(".uw-pi-lgi-votes").html("");
     state.votes = {};
+    update_votes();
 }
 function role_reveal(name, role) {
-    var pelem = $('.uw-plist-item[uw-player-name="' + name + '"] .glyphicon');
+    var pelem = $('.uw-plist-item[uw-player-name="' + name + '"] .pli-icon');
     var ielem = $('.uw-player-info[uw-player-name="' + name + '"] .uw-pi-lgi-role');
     console.log('revealing ' + name + ' as ' + role);
-    pelem.removeClass('glyphicon-user');
+    pelem.removeClass('glyphicon-user glyphicon-warning-sign'); /* for cursed */
     switch (role) {
         case "villager":
             pelem.addClass('glyphicon-ok');
@@ -280,28 +287,39 @@ function role_reveal(name, role) {
             pelem.addClass('glyphicon-eye-open');
         ielem.html('<i class="glyphicon glyphicon-eye-open"></i>&nbsp;this person is a seer');
         break;
+        case "village drunk":
+            pelem.addClass('glyphicon-glass');
+        ielem.html('<i class="glyphicon glyphicon-glass"></i>&nbsp;this person is a village drunk!');
+        break;
+        case "cursed villager":
+            pelem.addClass('glyphicon-ok uw-icon-cursed');
+        ielem.html('<i class="glyphicon glyphicon-ok uw-icon-cursed"></i>&nbsp;this person is a cursed villager');
+        break;
         default:
             pelem.addClass('glyphicon-user');
         ielem.html('<b>Role:</b>&nbsp' + role);
         break;
     }
 }
-function update_votes() {
+function update_votes(wolves) {
     $('.uw-pi-lgi-votes').html("");
+    $('.pli-votes').html("");
     var reverse_votes = {};
     Object.keys(state.votes).forEach(function(key) {
         if (!state.votes[key]) return;
         var elem = $('.uw-player-info[uw-player-name="' + key + '"] .uw-pi-lgi-votes-cast');
         var vote = state.votes[key];
-        elem.html('<b>Voting to lynch:</b>&nbsp;' + vote);
+        elem.html('<b>' + (wolves ? 'Voting to kill': 'Voting to lynch') + ':</b>&nbsp;' + vote);
         if (!reverse_votes[vote]) reverse_votes[vote] = [key];
         else reverse_votes[vote].push(key);
     });
     Object.keys(reverse_votes).forEach(function(key) {
         if (!reverse_votes[key]) return;
         var elem = $('.uw-player-info[uw-player-name="' + key + '"] .uw-pi-lgi-votes-recv');
+        var pliv = $('.uw-plist-item[uw-player-name="' + key + '"] .pli-votes');
         var votes = reverse_votes[key];
-        elem.html('<b>Voted for by:</b>&nbsp;' + votes.join(', '));
+        pliv.html(votes.length);
+        elem.html('<b>' + (wolves ? 'Targeted' : 'Voted for') + ' by:</b>&nbsp;' + votes.join(', '));
     });
 }
 function game_begin(sock) {
@@ -355,6 +373,7 @@ function game_begin(sock) {
         $('.uw-plist-item[uw-player-name="' + from + '"]').append(elem);
     });
     sock.on('death', function(who, role, why) {
+        if (why != 'disconnect') $('.uw-pi-btn-act').addClass('disabled');
         var text = "<b>" + who + "</b> died inexplicably.";
         if (death_msgs[why]) {
             text = death_msgs[why][Math.floor(Math.random() * death_msgs[why].length)];
@@ -373,28 +392,35 @@ function game_begin(sock) {
                 var buf = toDisplay;
                 toDisplay = [];
                 disp_msg("You died! :(");
-                disp_msg("Please take yourself out of the room to avoid sharing information.", undefined, function() {
-                    toDisplay = buf;
+                disp_msg("Please make sure you <b>do not</b> give any information away to other players; doing so can massively ruin the game!</br><small>You may continue to spectate and watch the game progress, as long as you are careful to not divulge any information.</small>", undefined, function() {
+                        toDisplay = buf;
                 });
             }
             $('#uw-pleft').html(Object.keys(state.plist).length);
-            if (why != 'disconnect') $('.uw-pi-btn-act').addClass('disabled');
             $('.uw-plist-item[uw-player-name="' + who + '"]').addClass('pli-dead');
             $('.uw-player-info[uw-player-name="' + who + '"] .uw-pi-lgi-dead').html('this player has died');
             $('.uw-player-info[uw-player-name="' + who + '"] .uw-pi-btns').hide();
             role_reveal(who, role);
         });
     });
+    sock.on('wolftgt', function(from, to) {
+        state.votes[from] = to;
+        update_votes(true);
+        disp_msg("<b>" + from + "</b> selects <b>" + to + "</b> to be killed tonight.");
+    });
     sock.on('nokill', function() {
         disp_msg("Wolf markings are found outside the city hall. However, no casualties are present.");
     });
     sock.on('rolemsg', function(role) {
         console.log('rolemsg: ' + role);
+        var role_msg = "You are a <b>" + role + "!";
         state.role = role;
-        disp_msg("You are a <b>" + role + "!", undefined, function() {
+        if (role_msgs[role]) role_msg = role_msgs[role];
+        disp_msg(role_msg, undefined, function() {
             $('.uw-role').html(role);
             $('.uw-role-text').show();
             role_reveal(state.name, role);
+            if (role == "village drunk") return;
             var roleact = "Target";
             if (role == "wolf") {
                 roleact = "Kill";
@@ -407,10 +433,7 @@ function game_begin(sock) {
             $('.uw-pi-btn-act').removeClass('disabled');
             $('.uw-pi-btn-act').html(roleact);
         });
-        if (role == "wolf") disp_msg("You may choose one person to kill per night.");
-        else if (role == "seer") disp_msg("You may divine the role of one person per night.");
-        else disp_msg("I have no idea what your role does. Good luck!");
-        disp_msg("Tap or click on your target below.");
+        if (role != "village drunk") disp_msg("Tap or click on your target below.");
     });
     sock.on('lynchvote', function(from, to) {
         disp_msg("<b>" + from + "</b> votes for <b>" + to + "</b>.", undefined, function() {
@@ -424,19 +447,18 @@ function game_begin(sock) {
     });
     sock.on('lynch_now', function(num) {
         console.log('lynch now');
-        disp_msg("The villagers must now decide who to lynch.", undefined, function() {
+        disp_msg("The villagers must now decide who to lynch.</br><small>At least <b>" + num + "</b> players must vote for the same person; no votes or an even split will not result in a lynching.</small>", undefined, function() {
             $('.uw-pi-btn-act').removeClass('btn-danger disabled btn-primary').addClass('btn-danger');
             $('.uw-pi-btn-act').html('Lynch');
         });
         if (state.dead) return;
-        disp_msg("A majority vote is required: at least <b>" + num + "</b> players must vote for the same person.");
         disp_msg("Tap or click on your target below.");
     });
     sock.on('gameover', function(winner) {
         console.log('gameover', winner);
         state.finished = true;
         var text = "Game over! All the wolves are dead! The villagers chop them up, cook them, and have a nice dinner.";
-        if (winner == "wolves") text = "Game over! The wolves outnumber the villagers and kill them all!";
+        if (winner == "wolves") text = "Game over! The wolves overpower the villagers and win.";
         disp_msg(text, undefined, function() {
             game_state(true);
             $('.uw-game').hide();
