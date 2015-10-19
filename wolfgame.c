@@ -123,6 +123,15 @@ const char *wg_rtc(enum wg_roles role) {
             break;
     }
 }
+enum wg_roles wgp_team(struct wg_player *wgp) {
+    switch (wgp->role) {
+        case WOLF:
+            return WOLF;
+            break;
+        default:
+            return VILLAGER;
+    }
+}
 void wg_kchoice_add(struct wg_player *actor, struct wg_player *tgt) {
     if (actor == tgt && wolfgame->state != DAY) {
         wgp_msg(actor, "Well, that's one way of thinking about it...");
@@ -143,7 +152,7 @@ void wg_kchoice_add(struct wg_player *actor, struct wg_player *tgt) {
     if (wolfgame->state == NIGHT) {
         actor->acted = true;
         WGP_ENUMERATE(wolfgame) {
-            if (EWGP->role == WOLF) {
+            if (wgp_team(EWGP) == WOLF) {
                 printf("WOLFTGT/%s/%s/%s\n", EWGP->id, actor->id, tgt->id);
             };
         }
@@ -178,6 +187,12 @@ void wgp_night(struct wg_player *wgp) {
             wgp->acted = false;
             break;
         case WOLF:
+            WGP_ENUMERATE(wolfgame) {
+                if (wgp_team(wgp) == WOLF && wgp->id != EWGP->id) {
+                    /* reveal any co-conspirators */
+                    printf("REVEAL/%s/%s/%s\n", wgp->id, EWGP->id, wg_rtc(EWGP->role));
+                }
+            }
             printf("ROLEMSG/%s/wolf\n", wgp->id);
             wgp->acted = false;
             break;
