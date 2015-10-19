@@ -25,10 +25,11 @@ char *ONE = "one";
 char *TWO = "two";
 char *THREE = "three";
 char *FOUR = "four";
-enum wg_roles { VILLAGER, WOLF, SEER, CURSED, DRUNK, NONE };
+enum wg_roles { VILLAGER, WOLF, SEER, CURSED, HARLOT, DRUNK, NONE };
 enum wg_states { DAY, NIGHT };
 struct wg_player {
     enum wg_roles role;
+    void *role_attr;
     char *id;
     int votes;
     bool free_my_id;
@@ -61,6 +62,7 @@ struct wg_player *wgp_init(void) {
     struct wg_player *pl = malloc(sizeof(struct wg_player));
     assert(pl != NULL);
     pl->role = NONE;
+    pl->role_attr = NULL;
     pl->id = NULL;
     pl->acted = false;
     pl->dead = false;
@@ -117,6 +119,9 @@ const char *wg_rtc(enum wg_roles role) {
             break;
         case DRUNK:
             return "village drunk";
+            break;
+        case HARLOT:
+            return "harlot";
             break;
         default:
             return "glitch";
@@ -175,6 +180,14 @@ void wg_role_act(struct wg_player *actr, struct wg_player *tgt) {
         case WOLF:
             wg_kchoice_add(actr, tgt);
             break;
+        case HARLOT:
+            if (actr->acted) return wgp_msg(actr, "You cannot visit more than one person.");
+            actr->role_attr = tgt;
+            actr->acted = true;
+            wgp_msg_sprintf(actr, "You choose to sleep with {%s} tonight.", tgt->id);
+            printf("REVEAL/%s/%s/%s\n", tgt->id, actr->id, wg_rtc(actr->role));
+            wgp_msg_sprintf(tgt, "{%s} is spending the night at your house.", actr->id);
+            break;
         default:
             wgp_msg_sprintf(actr, "You do not have a special ability.");
             break;
@@ -188,12 +201,17 @@ void wgp_night(struct wg_player *wgp) {
             break;
         case WOLF:
             WGP_ENUMERATE(wolfgame) {
-                if (wgp_team(wgp) == WOLF && wgp->id != EWGP->id) {
+                if (wgp_team(EWGP) == WOLF && wgp->id != EWGP->id) {
                     /* reveal any co-conspirators */
                     printf("REVEAL/%s/%s/%s\n", wgp->id, EWGP->id, wg_rtc(EWGP->role));
                 }
             }
             printf("ROLEMSG/%s/wolf\n", wgp->id);
+            wgp->acted = false;
+            break;
+        case HARLOT:
+            wgp->role_attr = NULL;
+            printf("ROLEMSG/%s/harlot\n", wgp->id);
             wgp->acted = false;
             break;
         case DRUNK:
@@ -290,6 +308,12 @@ void wg_kill_player(struct wg_player *wgp, char cause) {
             break;
         case 'w':
             dcause = "wolf";
+            break;
+        case 'h':
+            dcause = "harlot";
+            break;
+        case 'g':
+            dcause = "harlot_double";
             break;
         case 'u':
             dcause = "disconnect";
@@ -396,11 +420,35 @@ void wg_day(void) {
     wg_log("[+] The sun rises. The villagers, tired from the night before, get up and search the village...\n");
     if (wgp == NULL) {
         wg_log("[+] Traces of wolf blood and fur are found near the city hall. However, no casualties are present.\n");
-        printf("NOKILL\n");
+        printf("NOKILL/idle\n");
     }
     else {
-        wg_log("[+] The corpse of %s is found. After further analysis, it is revealed that they were a %s.\n", wgp->id, wg_rtc(wgp->role));
-        wg_kill_player(wgp, 'w');
+        if (wgp->role == HARLOT) {
+            wg_log("[+] The wolves' selected victim was a harlot, who was not at home last night.\n");
+            WGP_ENUMERATE(wolfgame) {
+                if (wgp_team(EWGP) == WOLF) {
+                    printf("REVEAL/%s/%s/%s\n", EWGP->id, wgp->id, wg_rtc(wgp->role));
+                }
+            }
+            printf("NOKILL/harlot\n");
+        }
+        else {
+            wg_log("[+] The corpse of %s is found. After further analysis, it is revealed that they were a %s.\n", wgp->id, wg_rtc(wgp->role));
+            wg_kill_player(wgp, 'w');
+        }
+    }
+    WGP_ENUMERATE(wolfgame) {
+        if (EWGP->role == HARLOT && EWGP->role_attr != NULL) {
+            struct wg_player *sleptwith = EWGP->role_attr;
+            if (sleptwith->role == WOLF) {
+                wg_log("[+] %s, a harlot, slept with a wolf last night and is now dead.\n", EWGP->id);
+                wg_kill_player(EWGP, 'h');
+            }
+            else if (EWGP->role_attr == wgp) {
+                wg_log("[+] %s, a harlot, was sleeping with the victim and was killed by the wolves as well.\n", EWGP->id);
+                wg_kill_player(EWGP, 'g');
+            }
+        }
     }
     wg_log("[+] The villagers must now decide who to lynch. (votes required: %d)\n", wg_calc_majority());
     printf("LYNCHINPUT/%d\n", wg_calc_majority());
@@ -444,7 +492,7 @@ static void arr_shuffle(void *array, size_t n, size_t size) {
  */
 struct wg_roleset roleset_4p = {2, 4, {SEER, WOLF}};
 struct wg_roleset roleset_6p = {4, 6, {SEER, WOLF, DRUNK, CURSED}};
-
+struct wg_roleset roleset_8p = {6, 8, {SEER, WOLF, WOLF, DRUNK, CURSED, HARLOT}};
 void role_chooser(struct wg_roleset *roleset) {
     srand(time(NULL));
     wg_log("[+] Choosing roles...\n");
@@ -493,6 +541,10 @@ int main(int argc, char *argv[]) {
                         roleset = &roleset_6p;
                         wg_log("[+] Using 6 player traditional roleset\n");
                         break;
+                    case 2:
+                        roleset = &roleset_8p;
+                        wg_log("[+] Using 8 player traditional roleset\n");
+                        break;
                     default:
                         wg_log("[-] Unrecognised roleset!");
                         return EXIT_FAILURE;
@@ -523,7 +575,11 @@ int main(int argc, char *argv[]) {
     } while (true);
     if (roleset == NULL) {
         wg_log("[+] Automatically choosing roleset...\n");
-        if (wolfgame->players->used >= 6) {
+        if (wolfgame->players->used >= 8) {
+            wg_log("[+] Using 8 player traditional roleset (use -c to change)\n");
+            roleset = &roleset_8p;
+        }
+        else if (wolfgame->players->used >= 6) {
             wg_log("[+] Using 6 player traditional roleset (use -c to change)\n");
             roleset = &roleset_6p;
         }
