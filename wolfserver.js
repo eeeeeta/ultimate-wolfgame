@@ -12,7 +12,7 @@ var port = process.env.PORT || 9090;
 var Engine = require('./wolfbridge');
 var rooms = {};
 var Hashids = require("hashids"),
-hashids = new Hashids("this hash does not matter in the slightest", 5);
+    hashids = new Hashids("this hash does not matter in the slightest", 5);
 
 var Room = function(gid) {
     let self = this;
@@ -28,7 +28,7 @@ var Room = function(gid) {
                 conflict_name = true;
             }
         });
-        if (self.started || self.socks.length >= 6 || conflict_name) {
+        if (self.started || self.socks.length >= 8 || conflict_name) {
             let reason = "too many players";
             if (self.started) reason = "game started";
             if (conflict_name) reason = "another person in this group has the same name as you";
@@ -123,8 +123,8 @@ var Room = function(gid) {
         self.engine.on('gameover', function(win) {
             sock.emit('gameover', win);
         });
-        self.engine.on('nokill', function() {
-            sock.emit('nokill');
+        self.engine.on('nokill', function(why) {
+            sock.emit('nokill', why);
         });
         self.engine.on('wtimeout', function() {
             sock.emit('wtimeout');

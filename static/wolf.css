@@ -157,7 +157,9 @@ body {
     color: #7109F2;
 }
 .pli-dead {
-    background: #FC6E6E !important;
+    background: black !important;
+    color: #C6C6C6 !important;
+    border: 1px solid white !important;
 }
 .pli-targeted {
     background: #FCA56E !important;
@@ -173,6 +175,7 @@ body {
     top: 0px;
     padding: 4px;
     background: rgb(255, 63, 0);
+    color: black;
     left: 0px;
     border-bottom-right-radius: 5px;
     z-index: 7;
@@ -182,6 +185,9 @@ body {
 }
 .glyphicon-eye-open {
     color: #2B0377;
+}
+.glyphicon-heart {
+    color: purple;
 }
 .glyphicon-glass {
     color: #FF7F2A;
@@ -212,6 +218,9 @@ body {
 .uw-loading {
     text-align: center;
 }
+#grpcode {
+    font-family: monospace;
+}
 .uw-title {
     font-size: 40px;
     font-family: 'Lobster Two', cursive;
@@ -228,4 +237,13 @@ body {
 }
 #start-btn {
     width: 100%;
+}
+.uwg-night small {
+    color: white !important;
+}
+.uwg-day small {
+    color: black !important;
+}
+.votelist {
+    font-size: 23px;
 }

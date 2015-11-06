@@ -23,6 +23,10 @@ var state = {
     hints: [],
     role: "villager"
 };
+var na_roles = [
+    "villager",
+    "village drunk"
+];
 var death_msgs = {
     wolf: [
         "The corpse of <b>%a</b>, a <b>%b</b>, is found. Those remaining mourn the tragedy.",
@@ -31,7 +35,13 @@ var death_msgs = {
     lynch: [
         "The villagers drag the protesting <b>%a</b> to a tree, hang them up, and lynch them. The village has lost a <b>%b</b>.",
         "The villagers, after a heated debate, decide to lynch <b>%a</b>... a <b>%b</b>.",
-        "An angry mob descends on <b>%a</b> and takes them to the gallows. After a rather painful execution, it is revealed that they were a <b>%b</b>"
+        "An angry mob descends on <b>%a</b> and takes them to the gallows. After a rather painful execution, it is revealed that they were a <b>%b</b>."
+    ],
+    harlot: [
+        "<b>%a</b>, a <b>%b</b>, slept with a wolf last night and is now dead."
+    ],
+    harlot_double: [
+        "The villagers also find the corpse of <b>%a</b>, a <b>%b</b>, who slept with the victim last night."
     ],
     disconnect: [
         "A disgruntled <b>%a</b>, most likely fed up with being a <b>%b</b>, takes a cyanide pill."
@@ -40,7 +50,9 @@ var death_msgs = {
 var role_msgs = {
     "seer": "You are a <b>seer</b>!</br><small>You may have one vision per night, in which you discover another player's role.</small>",
     "wolf": "You are a <b>werewolf</b>!</br><small>You may kill one player per night.</small>",
-    "village drunk": "You have been drinking too much! You are the <b>village drunk</b>!"
+    "village drunk": "You have been drinking too much! You are the <b>village drunk</b>!",
+    "harlot": "You are a <b>harlot</b>!</br><small>You may visit one person by night. You will die if you visit a wolf, or the wolves' selected victim.</small>",
+    "villager": "You are a <b>villager</b>!</br><small>Your job is to lynch all the wolves.</small>"
 };
 function on_lobby_join(id) {
     $('.uw-welcome').hide();
@@ -265,6 +277,7 @@ function game_state(st) {
     $("body").removeClass(ctr);
     $("body").addClass(cta);
     $(".uw-dn-text").html(st ? "Nighttime" : "Daytime");
+    if (state.dead) $(".uw-dn-text").html("Observing");
     $(".uwh-ingame").addClass(cta);
     state.votes = {};
     update_votes();
@@ -275,28 +288,32 @@ function role_reveal(name, role) {
     console.log('revealing ' + name + ' as ' + role);
     pelem.removeClass('glyphicon-user glyphicon-warning-sign'); /* for cursed */
     switch (role) {
-        case "villager":
-            pelem.addClass('glyphicon-ok');
+    case "villager":
+        pelem.addClass('glyphicon-ok');
         ielem.html('<i class="glyphicon glyphicon-ok"></i>&nbsp;this person is a villager');
         break;
-        case "wolf":
-            pelem.addClass('glyphicon-warning-sign');
+    case "wolf":
+        pelem.addClass('glyphicon-warning-sign');
         ielem.html('<i class="glyphicon glyphicon-warning-sign"></i>&nbsp;this person is a wolf');
         break;
-        case "seer":
-            pelem.addClass('glyphicon-eye-open');
+    case "seer":
+        pelem.addClass('glyphicon-eye-open');
         ielem.html('<i class="glyphicon glyphicon-eye-open"></i>&nbsp;this person is a seer');
         break;
-        case "village drunk":
-            pelem.addClass('glyphicon-glass');
+    case "village drunk":
+        pelem.addClass('glyphicon-glass');
         ielem.html('<i class="glyphicon glyphicon-glass"></i>&nbsp;this person is a village drunk!');
         break;
-        case "cursed villager":
-            pelem.addClass('glyphicon-ok uw-icon-cursed');
+    case "cursed villager":
+        pelem.addClass('glyphicon-ok uw-icon-cursed');
         ielem.html('<i class="glyphicon glyphicon-ok uw-icon-cursed"></i>&nbsp;this person is a cursed villager');
         break;
-        default:
-            pelem.addClass('glyphicon-user');
+    case "harlot":
+        pelem.addClass('glyphicon-heart');
+        ielem.html('<i class="glyphicon glyphicon-heart"></i>&nbsp;this person is a harlot');
+        break; 
+    default:
+        pelem.addClass('glyphicon-user');
         ielem.html('<b>Role:</b>&nbsp' + role);
         break;
     }
@@ -304,11 +321,15 @@ function role_reveal(name, role) {
 function update_votes(wolves) {
     $('.uw-pi-lgi-votes').html("");
     $('.pli-votes').html("");
+    $('.votelist').html("");
+    $('.votetext').html("");
     var reverse_votes = {};
     Object.keys(state.votes).forEach(function(key) {
         if (!state.votes[key]) return;
         var elem = $('.uw-player-info[uw-player-name="' + key + '"] .uw-pi-lgi-votes-cast');
         var vote = state.votes[key];
+        $('.votetext').html(wolves ? "Wolfteam selections" : "Votes so far");
+        $('.votelist').append("<li><b>" + key + "</b> for <b>" + vote + "</b></li>");
         elem.html('<b>' + (wolves ? 'Voting to kill': 'Voting to lynch') + ':</b>&nbsp;' + vote);
         if (!reverse_votes[vote]) reverse_votes[vote] = [key];
         else reverse_votes[vote].push(key);
@@ -359,8 +380,6 @@ function game_begin(sock) {
         }
         else {
             disp_msg("<b>As the sun approaches the horizon, the villagers are reminded that they must make a choice soon!</b>");
-            disp_msg("If there is no majority in <b>2 minutes' time</b>, the player with the <b>most amount</b> of votes will be lynched.");
-            disp_msg("A random player will be lynched if there is an even split.");
         }
     });
     sock.on('hint', function(from) {
@@ -373,7 +392,9 @@ function game_begin(sock) {
         $('.uw-plist-item[uw-player-name="' + from + '"]').append(elem);
     });
     sock.on('death', function(who, role, why) {
-        if (why != 'disconnect') $('.uw-pi-btn-act').addClass('disabled');
+        if (why != 'disconnect') {
+            $('.uw-pi-btn-act').addClass('disabled');
+        }
         var text = "<b>" + who + "</b> died inexplicably.";
         if (death_msgs[why]) {
             text = death_msgs[why][Math.floor(Math.random() * death_msgs[why].length)];
@@ -389,12 +410,7 @@ function game_begin(sock) {
             if (who == state.name) {
                 state.dead = true;
                 $('.uw-dead-text').show();
-                var buf = toDisplay;
-                toDisplay = [];
-                disp_msg("You died! :(");
-                disp_msg("Please make sure you <b>do not</b> give any information away to other players; doing so can massively ruin the game!</br><small>You may continue to spectate and watch the game progress, as long as you are careful to not divulge any information.</small>", undefined, function() {
-                        toDisplay = buf;
-                });
+                $('.uw-dn-text').html("Observing");
             }
             $('#uw-pleft').html(Object.keys(state.plist).length);
             $('.uw-plist-item[uw-player-name="' + who + '"]').addClass('pli-dead');
@@ -408,8 +424,9 @@ function game_begin(sock) {
         update_votes(true);
         disp_msg("<b>" + from + "</b> selects <b>" + to + "</b> to be killed tonight.");
     });
-    sock.on('nokill', function() {
-        disp_msg("Wolf markings are found outside the city hall. However, no casualties are present.");
+    sock.on('nokill', function(why) {
+        if (why == "harlot") disp_msg("The wolves' selected victim was a harlot, who was not home last night.");
+        else disp_msg("Wolf markings are found outside the city hall. However, no casualties are present.");
     });
     sock.on('rolemsg', function(role) {
         console.log('rolemsg: ' + role);
@@ -420,7 +437,8 @@ function game_begin(sock) {
             $('.uw-role').html(role);
             $('.uw-role-text').show();
             role_reveal(state.name, role);
-            if (role == "village drunk") return;
+            if (na_roles.indexOf(role) != -1)
+                return; /* non-acting roles */
             var roleact = "Target";
             if (role == "wolf") {
                 roleact = "Kill";
@@ -430,16 +448,18 @@ function game_begin(sock) {
                 roleact = "See";
                 $('.uw-pi-btn-act').removeClass('btn-danger btn-primary').addClass('btn-primary');
             }
+            if (role == "harlot") {
+                roleact = "Visit";
+                $('.uw-pi-btn-act').removeClass('btn-danger btn-primary').addClass('btn-primary');
+            }
             $('.uw-pi-btn-act').removeClass('disabled');
             $('.uw-pi-btn-act').html(roleact);
         });
-        if (role != "village drunk") disp_msg("Tap or click on your target below.");
+        if (na_roles.indexOf(role) == -1) disp_msg("Tap or click on your target below.");
     });
     sock.on('lynchvote', function(from, to) {
-        disp_msg("<b>" + from + "</b> votes for <b>" + to + "</b>.", undefined, function() {
             state.votes[from] = to;
             update_votes();
-        });
     });
     sock.on('reveal', function(who, role) {
         console.log('reveal', who, role);
@@ -532,7 +552,7 @@ $(document).ready(function ready_cb() {
             $('.init-btns').show();
             $('.group-join-input').hide();
         });
-        $('#group-join-confirm').click(function() {
+        var gjc = function() {
             $('.group-join-input').hide();
             $('.group-join-waiting').show();
             join_grp(sock).then(function(id) {
@@ -542,6 +562,12 @@ $(document).ready(function ready_cb() {
                 $('.group-join-input').show();
                 $('.group-join-waiting').hide();
             });
+        };
+        $('#group-join-confirm').click(gjc);
+        $('#group-code').keyup(function(e) {
+            if (e.keyCode == 13) {
+                gjc();
+            }
         });
         $('#start-btn').click(function() {
             if ($('#start-btn').hasClass('disabled')) return;
