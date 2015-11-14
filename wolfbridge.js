@@ -115,7 +115,7 @@ var Engine = function(rid, plist) {
             self._inputnow = false;
         }
         if (cmd == 'NOKILL') {
-            self.emit('nokill');
+            self.emit('nokill', line[0]);
         }
         if (cmd == 'WTIMEOUT') {
             self.emit('wtimeout');
