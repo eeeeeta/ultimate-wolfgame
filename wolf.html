@@ -1,150 +1,161 @@
 <!DOCTYPE html>
 <html>
-    <head>
-        <title>Ultimate Wolfgame</title>
-        <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
-        <link href='https://fonts.googleapis.com/css?family=Lobster+Two|Raleway' rel='stylesheet' type='text/css'>
-        <script src="/prefixfree.js"></script>
-        <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
-        <script src="/jquery.mobile.custom.min.js"></script>
-        <script src="/prefixfree-jquery.js"></script>
-        <script src="/socket.io/socket.io.js"></script>
-        <script src="/bluebird.min.js"></script>
-        <script src="/wolf.js"></script>
-        <link rel="stylesheet" href="/wolf.css">
-        <link rel="stylesheet" href="/anim.css">
-    </head>
-    <body class="transition">
-        <div class="uw-headpiece uwl-item">
-            <span class="uw-title">Ultimate Wolfgame</span>
+  <head>
+    <title>Ultimate Wolfgame</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
+    <link href='https://fonts.googleapis.com/css?family=Lobster+Two|Raleway' rel='stylesheet' type='text/css'>
+    <script src="/prefixfree.js"></script>
+    <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/3.10.1/lodash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/machina.js/1.1.2/machina.min.js"></script>
+    <script src="/jquery.mobile.custom.min.js"></script>
+    <script src="/prefixfree-jquery.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/bluebird.min.js"></script>
+    <script src="/wolf.js"></script>
+    <link rel="stylesheet" href="/wolf.css">
+    <link rel="stylesheet" href="/anim.css">
+  </head>
+  <body class="transition">
+    <div class="uw-headpiece uwl-item">
+      <span class="uw-title">Ultimate Wolfgame</span>
             </br>
             <a class="uw-shameless-plug" href="//theta.eu.org">an <span class="eta">&#x03b7;</span> creation</a>
-        </div>
-        <div class="uw-headpiece uwh-ingame uwg-item transition" style="display: none;">
-            <span class="uw-dn-text">Loading...</span>
+    </div>
+    <div class="uw-headpiece uwh-ingame uwg-item transition" style="display: none;">
+      <span class="uw-dn-text">Loading...</span>
             </br>
             <span class="uw-gstatus"><b><span id="uw-pleft">0</span></b> players remaining<span class="uw-role-text" style="display: none;"> &middot; you are a <b><span class="uw-role">(role not yet known)</span></b></span><span class="uw-dead-text" style="display: none;"> &middot; you are dead</span>
+    </div>
+    <div class="uw-main uwg-dn">
+      <div class="uw-welcome uwn uwl-item">
+        <h2>Welcome to Ultimate Wolfgame</h2>
+        <h4 class="init-conn">Just wait a second, we're connecting to the server...</h4>
+        <div class="group-join-waiting" style="display: none;">
+          <h3>Waiting for server...</h3>
+          <div class="uw-loading-circle"></div>
         </div>
-        <div class="uw-main uwg-dn">
-            <div class="uw-welcome uwn uwl-item">
-                <h2>Welcome to Ultimate Wolfgame</h2>
-                <h4 class="init-conn">Just wait a second, we're connecting to the server...</h4>
-                <div class="init-btns animated fadeIn" style="display: none;">
-                    <h4>Please enter a name, then click Create to start a new game or Join to join an existing game.</h4>
-                    <div class="input-group">
-                        <input type="text" class="form-control" placeholder="Name" id="name">
-                        <span class="input-group-btn">
-                            <button type="button" id="group-create" class="btn btn-danger name-val">
-                                Create
-                            </button>
-                            </span><span class="input-group-btn">
-                            <button type="button" id="group-join" class="btn btn-success name-val">
-                                Join
-                        </button></span>
-                    </div>
-                </div>
-                <div class="group-join-input" style="display: none;">
-                    <h4>Enter the group code given to you by your host.</h4>
-                    <div class="input-group">
-                        <span class="input-group-btn">
-                            <button class="btn btn-default" id="group-join-welp">
-                                Back
-                            </button>
-                        </span>
-                        <input type="text" class="form-control" placeholder="Enter group code here!" id="group-code">
-                        <span class="input-group-btn">
-                            <button class="btn btn-success" id="group-join-confirm">
-                                Join!
-                            </button>
-                        </span>
-                    </div>
-                </div>
-                <div class="group-join-waiting" style="display: none;">
-                    <h3>Waiting for server...</h3>
-                </div>
+        <div class="init-btns animated fadeIn" style="display: none;">
+          <h4>Please enter a name, then click Create to start a new game or Join to join an existing game.</h4>
+          <div class="input-group">
+            <input type="text" class="form-control" placeholder="Name" id="name">
+            <span class="input-group-btn">
+              <button type="button" id="group-create" onclick="Wolfgame.handle('create')" class="btn btn-danger name-val">
+                Create
+              </button>
+            </span><span class="input-group-btn">
+              <button type="button" id="group-join" onclick="Wolfgame.handle('join')" class="btn btn-success name-val">
+                Join
+            </button></span>
+          </div>
+        </div>
+        <div class="group-join-input" style="display: none;">
+          <h4>Enter the group code given to you by your host.</h4>
+          <div class="input-group">
+            <span class="input-group-btn">
+              <button class="btn btn-default" onclick="Wolfgame.handle('back')" id="group-join-welp">
+                Back
+              </button>
+            </span>
+            <input type="text" class="form-control" placeholder="Enter group code here!" id="group-code">
+            <span class="input-group-btn">
+              <button class="btn btn-success" onclick="Wolfgame.handle('join')" id="group-join-confirm">
+                Join!
+              </button>
+            </span>
+          </div>
+        </div>
+      </div>
+      <div class="uw-lobby uwn uwl-item" style="display: none;">
+        <h2>Lobby</h2>
+        <div class="uw-lobby-waiting">
+          <h3>Waiting for players...</h3>
+          <h4>Group code: <span id="grpcode">[loading]</span></h4>
+          <div class="progress">
+            <div class="progress-bar progress-bar-striped progress-bar-success active"
+                 id="lobby-progress" style="width: 20%">
             </div>
-            <div class="uw-lobby uwn uwl-item" style="display: none;">
-                <h2>Lobby</h2>
-                <div class="uw-lobby-waiting">
-                    <h3>Waiting for players...</h3>
-                    <h4>Group code: <span id="grpcode">[loading]</span></h4>
-                    <div class="progress">
-                        <div class="progress-bar progress-bar-striped progress-bar-success active"
-                            id="lobby-progress" style="width: 20%">
-                        </div>
-                    </div>
-                    <center>
-                        <button id="start-btn" class="btn btn-lg btn-danger btn-disabled">Start game</button>
-                    </center>
-                </div>
-                <div class="uw-lobby-starting" style="display: none;">
-                    <h3>Starting game...</h3>
-                    <h4>(let's hope this works)</h4>
-                </div>
+          </div>
+          <center>
+            <button id="start-btn" onclick="Wolfgame.handle('start')" class="btn btn-lg btn-danger" disabled>Start game</button>
+          </center>
+        </div>
+        <div class="uw-lobby-starting" style="display: none;">
+          <h3>Starting game...</h3>
+          <h4>(let's hope this works)</h4>
+        </div>
                 </br>
-            </div>
-            <div class="uw-loading uwn" style="display: none;">
-              <h3>Waiting...</h3>
-              <h2 class="votetext"></h2>
-                <ul class="votelist"></ul>
-                <div class="uw-loading-circle"></div>
-                
-            </div>
-            <div class="uw-game uwg-item uwn" style="display: none;">
-                <h1 id="msgs" class="animated" style="display: none;">Welcome to Ultimate Wolfgame.</h1>
-            </div>
-            <div class="uw-gameover uwn" style="display: none;">
-                <h1>The <span class="winners">somebodies</span> win!</h2>
+      </div>
+      <div class="uw-dead-ui uwn" style="display: none;">
+        <h2>You died!</h2>
+        <h3>It's just not your day today, is it?</h3>
+        </hr>
+        <h4>Please do not divulge any information to other players; doing so can ruin the game
+          for those not dead yet!</h4>
+        <h4>Otherwise, enjoy death. You still should get most game messages and information below.</h4>
+      </div>
+      <div class="uw-loading uwn" style="display: none;">
+        <h2 class="votetext"></h2>
+        <ul class="votelist"></ul>
+        <h3 id="uw-loading-waittext">Waiting...</h3>
+        <div class="uw-loading-circle"></div>
+        
+      </div>
+      <div class="uw-game uwg-item uwn" style="display: none;">
+        <h1 id="msgs" class="animated" style="display: none;">Welcome to Ultimate Wolfgame.</h1>
+      </div>
+      <div class="uw-gameover uwn" style="display: none;">
+        <h1>The <span class="winners">somebodies</span> win!</h2>
                 </hr>
                 <h3>Thanks for playing!</h3>
                 <h4>Ultimate Wolfgame was brought to you by <a href="//theta.eu.org"><span class="eta">&eta;</span></a>.</h4>
                 <button class="btn btn-lg btn-success uw-btn-refresh">Play another!</button>
-            </div>
-            <div class="uw-player-info-boxes uwn">
-                <div class="uw-player-info uw-player-info-template col-sm-6 col-xs-12 col-lg-3">
-                    <div class="uw-pi-header">
-                        <h3 class="uw-pi-name">someplayer</h3>
-                        <button class="btn btn-default uw-pi-btn-close"><i class="glyphicon glyphicon-remove"></i></button>
-                    </div>
-                    <div class="uw-pi-btns row">
-                        <div class="col-sm-6 col-xs-6">
-                            <button class="btn uw-pi-btn uw-pi-btn-act disabled btn-danger">Lynch</button>
-                        </div>
-                        <div class="col-sm-6 col-xs-6">
-                            <button class="btn uw-pi-btn uw-pi-btn-msafe uw-pi-btn-hint">Hint</button>
-                        </div>
-                    </div>
-                    <ul class="uw-pi-lg list-group">
-                        <li class="list-group-item uw-pi-lgi-me"></li>
-                        <li class="list-group-item uw-pi-lgi-dead"></li>
-                        <li class="list-group-item uw-pi-lgi-role"></li>
-                        <li class="list-group-item uw-pi-lgi-votes uw-pi-lgi-votes-cast"></li>
-                        <li class="list-group-item uw-pi-lgi-votes uw-pi-lgi-votes-recv"></li>
-                        <li class="list-group-item uw-pi-lgi-hint"></li>
-                        <li class="list-group-item uw-pi-lgi-hint-recv"></li>
-                    </ul>
-                </div>
-            </div>
-            <div class="uw-plist uwn" style="display: none;">
-                <h3>Player list</h3>
-                <div class="uw-plist-int">
-                </div>
-            </div>
-            <div class="uw-ise" style="display: none;">
-                <h2>Internal server error</h2>
-                <h4>Oops. Maybe one of our engineers forgot a semicolon?</h4>
-                <center>
-                    <img src="https://i.imgur.com/3y69yLP.png"></img>
-                </center>
-            </div>
-            <div class="uw-disconn" style="display: none;">
-                <h2>Disconnected</h2>
-                <h4>Oh dear! It appears you've lost connection to the server.</h4>
-                <h4>Try checking your internet connection.</h4>
-                <button class="btn btn-lg btn-success uw-btn-refresh">Reconnect</button>
-            </div>
-        </div>
-    </body>
+</div>
+<div class="uw-player-info-boxes uwn">
+  <div class="uw-player-info uw-player-info-template col-sm-6 col-xs-12 col-lg-3">
+    <div class="uw-pi-header">
+      <h3 class="uw-pi-name">someplayer</h3>
+      <button class="btn btn-default uw-pi-btn-close"><i class="glyphicon glyphicon-remove"></i></button>
+    </div>
+    <div class="uw-pi-btns row">
+      <div class="col-sm-6 col-xs-6">
+        <button class="btn uw-pi-btn uw-pi-btn-act btn-danger" disabled>Lynch</button>
+      </div>
+      <div class="col-sm-6 col-xs-6">
+        <button class="btn uw-pi-btn uw-pi-btn-msafe uw-pi-btn-hint">Hint</button>
+      </div>
+    </div>
+    <ul class="uw-pi-lg list-group">
+      <li class="list-group-item uw-pi-lgi-me"></li>
+      <li class="list-group-item uw-pi-lgi-dead"></li>
+      <li class="list-group-item uw-pi-lgi-role"></li>
+      <li class="list-group-item uw-pi-lgi-votes uw-pi-lgi-votes-cast"></li>
+      <li class="list-group-item uw-pi-lgi-votes uw-pi-lgi-votes-recv"></li>
+      <li class="list-group-item uw-pi-lgi-hint"></li>
+      <li class="list-group-item uw-pi-lgi-hint-recv"></li>
+    </ul>
+  </div>
+</div>
+<div class="uw-plist uwn" style="display: none;">
+  <h3>Player list</h3>
+  <div class="uw-plist-int">
+  </div>
+</div>
+<div class="uw-ise" style="display: none;">
+  <h2>Internal server error</h2>
+  <h4>Oops. I probably forgot a semicolon.</h4>
+  <center>
+    <img src="https://i.imgur.com/3y69yLP.png"></img>
+  </center>
+</div>
+<div class="uw-disconn" style="display: none;">
+  <h2>Disconnected</h2>
+  <h4>Oh dear! It appears you've lost connection to the server.</h4>
+  <h4>Try checking your internet connection.</h4>
+  <button class="btn btn-lg btn-success uw-btn-refresh" onclick="location.reload()">Reconnect</button>
+</div>
+</div>
+</body>
 </html>

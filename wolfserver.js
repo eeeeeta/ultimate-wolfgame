@@ -134,11 +134,11 @@ var Room = function(gid) {
             sock.emit('death', who, role, why);
         });
         self.engine.on('lynchvote', function(from, to) {
-            sock.emit('lynchvote', from, to);
+            sock.emit('vote', from, to);
         });
         self.engine.on('wolftgt', function(tgt, from, to) {
             if (tgt != sock.id) return;
-            sock.emit('wolftgt', from, to);
+            sock.emit('vote', from, to);
         });
         self.engine.on('endstat', function(who, role, da) {
             sock.emit('endstat', who, role, da);
@@ -217,6 +217,24 @@ var humanise = function(sock) {
     else if (sock.name) return sock.name;
     else return "[SID " + sock.id + "]";
 };
+var setName = function(sock, name, crt) {
+    if (!/^[a-z0-9]+$/i.test(name) || name.length > 15 || name.length < 3) {
+        sock.emit((crt ? 'joinfail' : 'namefail'), "Invalid name provided: must be alphanumeric and between 3 and 15 chars long");
+        log.info('sid ' + sock.id + ' gave invalid name ' + name, {
+            sid: sock.id
+        });
+        return false;
+    }
+    else {
+        sock.emit('nameset', name);
+        sock.name = name;
+        log.info('sid ' + sock.id + ' set name to ' + name, {
+            sid: sock.id
+        });
+        return true;
+    }
+};
+
 io.on('connection', function(sock) {
     sock.ip = sock.request.connection.remoteAddress;
     sock.name = null;
@@ -227,19 +245,7 @@ io.on('connection', function(sock) {
         ip: sock.ip
     });
     sock.on('setname', function(name) {
-        if (!/^[a-z0-9]+$/i.test(name) || name.length > 15 || name.length < 3) {
-            sock.emit('namefail');
-            log.info('sid ' + sock.id + ' gave invalid name ' + name, {
-                sid: sock.id
-            });
-        }
-        else {
-            sock.emit('nameset', name);
-            sock.name = name;
-            log.info('sid ' + sock.id + ' set name to ' + name, {
-                sid: sock.id
-            });
-        }
+        setName(sock, name, false);
     });
     sock.on('disconnect', function() {
         log.info(humanise(sock) + ' disconnected', {
@@ -259,7 +265,11 @@ io.on('connection', function(sock) {
             }
         }
     });
-    sock.on('create', function() {
+    sock.on('create', function(name) {
+        if (!setName(sock, name, true)) {
+            log.info(humanise(sock) + ' failed to set name in creation');
+            return;
+        }
         if (sock.grp) {
             log.info(humanise(sock) + ' attempted to create a room, but they are already in one!', {sid: sock.id});
             return;
@@ -275,13 +285,11 @@ io.on('connection', function(sock) {
             id = id.toUpperCase();
             log.info('generated id ' + id + ' for new game (by ' + humanise(sock) + ')', {sid: sock.id});
             if (!rooms[id]) break;
-            if (tries++ > 5) {
-                log.error('tried more than 5 times to generate id for game, giving up', {sid: sock.id});
-                sock.emit('ise');
-                return;
-            }
-            log.warn('hit id collision, retrying', {sid: sock.id});
+            log.error('tried more than 5 times to generate id for game, giving up', {sid: sock.id});
+            sock.emit('ise');
+            return;
         }
+        log.warn('hit id collision, retrying', {sid: sock.id});
         let room = new Room(id);
         rooms[id] = room;
         if (room.join(sock)) {
